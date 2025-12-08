@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "maker-council": {
+      "command": "node",
+      "args": [
+        "dist/index.js"
+      ],
+      "cwd": "c:\\Users\\Wesley Marinho\\Documents\\Custom MCPs\\maker-council",
+      "env": {
+        "MAKER_API_KEY": "11afe723d0a445939507d4f6bda1621f.eQZGBiypMMR3Ag0b",
+        "MAKER_BASE_URL": "https://api.z.ai/api/coding/paas/v4",
+        "MAKER_JUDGE_MODEL": "GLM-4.6",
+        "MAKER_VOTER_MODEL": "GLM-4.5-air",
+        "MAKER_K": "3",
+        "MAKER_MAX_TOKENS": "750",
+        "MAKER_MAX_ROUNDS": "50"
+      },
+      "alwaysAllow": [
+        "consult_council",
+        "decompose_task",
+        "solve_with_voting"
+      ],
+      "timeout": 300
+    }
+  }
+}

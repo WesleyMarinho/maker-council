@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment files (API keys)
+.env
+.env.local
+
+# Python legacy (can be deleted)
+.venv/
+__pycache__/
+*.pyc
+.ruff_cache/
+.serena/
+uv.lock
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
