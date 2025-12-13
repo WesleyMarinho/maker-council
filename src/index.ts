@@ -248,10 +248,21 @@ async function main() {
     }
   });
 
-  // Iniciar servidor
+  // Iniciar servidor MCP
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("MAKER-Council MCP Server iniciado");
 }
 
-main().catch(console.error);
+// Detectar modo de execução baseado em variável de ambiente ou argumento
+// MAKER_MCP_MODE=true força modo MCP (usado pelo cliente MCP)
+// Por padrão, quando executado diretamente (npm run dev), inicia servidor HTTP
+const isMCPMode = process.env.MAKER_MCP_MODE === 'true' || process.argv.includes('--mcp');
+
+if (isMCPMode) {
+  // Modo MCP: usar stdin/stdout para comunicação com cliente MCP
+  main().catch(console.error);
+} else {
+  // Modo standalone: iniciar servidor HTTP Express (comportamento padrão para dev)
+  import('./server.js').catch(console.error);
+}
