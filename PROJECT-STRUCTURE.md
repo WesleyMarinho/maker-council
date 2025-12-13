@@ -6,7 +6,8 @@
 maker-council/
 ├── 📄 DOC 2511.09030v1.pdf          # Paper original MAKER
 ├── 📄 README.md                      # Guia rápido de uso
-├── 📄 MAKER-SPECIFICATION.md         # Especificação técnica completa
+├── 📄 MAKER-SPECIFICATION.md         # Especificação técnica do Council
+├── 📄 MCP-MODEL-API-SPEC.md          # Especificação da API 'query'
 ├── 📄 PROJECT-STRUCTURE.md           # Este arquivo
 ├── 📄 package.json                   # Dependências Node.js
 ├── 📄 package-lock.json              # Lock de dependências
@@ -14,7 +15,14 @@ maker-council/
 ├── 📄 .gitignore                     # Arquivos ignorados pelo Git
 │
 ├── 📁 src/                           # Código-fonte TypeScript
-│   └── 📄 index.ts                   # Implementação principal (685 linhas)
+│   ├── 📄 index.ts                   # Implementação MCP principal
+│   ├── 📄 server.ts                  # Servidor HTTP compatível com OpenAI
+│   └── 📄 logic.ts                   # Lógica de processamento do MAKER-Council
+│
+├── 📁 tests/                         # Testes automatizados
+│   ├── 📄 query-api.test.ts          # Testes para a nova API 'query'
+│   ├── 📄 coding-benchmark.ts        # Benchmarks de codificação
+│   └── 📄 stress-test.ts             # Testes de carga
 │
 ├── 📁 dist/                          # Código compilado (gerado)
 │   ├── 📄 index.js                   # JavaScript compilado
@@ -68,13 +76,18 @@ npm install
 # Compilar TypeScript
 npm run build
 
-# Executar em desenvolvimento
+# Executar em desenvolvimento (modo MCP)
 npm run dev
 
-# Executar compilado
+# Executar compilado (modo MCP)
 npm start
 # ou
 node dist/index.js
+
+# Iniciar servidor API (modo OpenAI-compatible)
+npm run serve
+# ou
+node dist/server.js
 ```
 
 ## 📊 Estatísticas do Código
@@ -82,9 +95,11 @@ node dist/index.js
 | Arquivo | Linhas | Descrição |
 |---------|--------|-----------|
 | `src/index.ts` | 685 | Implementação completa do MCP |
-| `README.md` | ~150 | Documentação de uso |
+| `src/server.ts` | 254 | Servidor HTTP compatível com OpenAI |
+| `src/logic.ts` | 648 | Lógica de processamento compartilhada |
+| `README.md` | ~200 | Documentação de uso |
 | `MAKER-SPECIFICATION.md` | ~400 | Especificação técnica |
-| **Total** | **~1235** | Código + Documentação |
+| **Total** | **~2187** | Código + Documentação |
 
 ## 🎯 Arquivos Essenciais
 
@@ -93,9 +108,11 @@ node dist/index.js
 2. **`.roo/mcp.json`** - Configuração do servidor
 
 ### Para Desenvolvimento
-1. **`src/index.ts`** - Código-fonte
-2. **`package.json`** - Dependências
-3. **`tsconfig.json`** - Configuração do compilador
+1. **`src/index.ts`** - Código-fonte MCP
+2. **`src/server.ts`** - Código-fonte do servidor API
+3. **`src/logic.ts`** - Lógica compartilhada
+4. **`package.json`** - Dependências
+5. **`tsconfig.json`** - Configuração do compilador
 
 ### Para Documentação
 1. **`README.md`** - Guia rápido
@@ -108,6 +125,7 @@ node dist/index.js
 - ✅ Todos os arquivos Python removidos
 - ✅ TypeScript compilado e funcionando
 - ✅ Todas as 3 ferramentas testadas e operacionais
+- ✅ Servidor HTTP compatível com OpenAI implementado
 - ✅ Documentação completa
 - ✅ Configurado para GLM via Z.AI
 

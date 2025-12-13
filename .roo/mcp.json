@@ -7,12 +7,12 @@
       ],
       "cwd": "c:\\Users\\Wesley Marinho\\Documents\\Custom MCPs\\maker-council",
       "env": {
-        "MAKER_API_KEY": "11afe723d0a445939507d4f6bda1621f.eQZGBiypMMR3Ag0b",
-        "MAKER_BASE_URL": "https://api.z.ai/api/coding/paas/v4",
-        "MAKER_JUDGE_MODEL": "GLM-4.6",
-        "MAKER_VOTER_MODEL": "GLM-4.5-air",
+        "MAKER_API_KEY": "dummy",
+        "MAKER_BASE_URL": "http://localhost:8317/v1",
+        "MAKER_JUDGE_MODEL": "gemini-3-pro-preview",
+        "MAKER_VOTER_MODEL": "gemini-2.5-flash-lite",
         "MAKER_K": "3",
-        "MAKER_MAX_TOKENS": "750",
+        "MAKER_MAX_TOKENS": "16000",
         "MAKER_MAX_ROUNDS": "50"
       },
       "alwaysAllow": [
@@ -20,7 +20,7 @@
         "decompose_task",
         "solve_with_voting"
       ],
-      "timeout": 300
+      "timeout": 600
     }
   }
 }

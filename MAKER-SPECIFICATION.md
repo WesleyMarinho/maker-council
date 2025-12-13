@@ -4,7 +4,12 @@ Baseado no paper **"MAKER: Massively Decomposed Agentic Processes"** (arXiv:2511
 
 ## Visão Geral
 
-O MAKER-Council é um servidor MCP (Model Context Protocol) que implementa a metodologia MAKER para resolver problemas complexos através de:
+O MAKER-Council é uma implementação do paper **"MAKER: Massively Decomposed Agentic Processes"** que oferece duas modalidades de operação:
+
+1. **Modo MCP Server** - Integração com ferramentas baseadas em Model Context Protocol (Roo, Claude Desktop)
+2. **Modo API Server** - Servidor HTTP compatível com OpenAI para integração com ferramentas compatíveis (Roo Code, Cursor, etc.)
+
+O sistema implementa a metodologia MAKER através de:
 
 1. **MAD** (Maximal Agentic Decomposition) - Decomposição em subtarefas mínimas
 2. **First-to-ahead-by-k Voting** - Sistema de votação com margem k para consenso
@@ -105,9 +110,56 @@ Cada tarefa é decomposta em passos atômicos onde:
 
 ## Ferramentas MCP
 
+### `query` (Ponto de Entrada Recomendado)
+
+**Descrição**: Ponto de entrada unificado que abstrai a complexidade do MAKER-Council. A ferramenta analisa a requisição e a roteia internamente para o sub-sistema mais apropriado (`consult_council`, `decompose_task`, ou `solve_with_voting`), simplificando a interação para o cliente.
+
+**Parâmetros**:
+
+-   `prompt` (string, obrigatório): A consulta principal, pergunta ou tarefa a ser executada.
+-   `context` (object, opcional): Fornece contexto adicional (e.g., `code`, `history`, `filePath`).
+-   `intent` (string, opcional): Define a intenção explícita para roteamento direto.
+    -   `decision` / `code_review`: Roteia para `consult_council`.
+    -   `decomposition`: Roteia para `decompose_task`.
+    -   `validation`: Roteia para `solve_with_voting`.
+-   `config` (object, opcional): Sobrepõe configurações padrão (e.g., `num_voters`, `k`).
+
+**Lógica de Roteamento**:
+
+1.  **`intent` Explícito**: Se o campo `intent` for fornecido, a requisição é roteada diretamente para a ferramenta correspondente.
+2.  **Inferência por `prompt`**: Se o `intent` não for fornecido, a API infere a melhor ferramenta com base em palavras-chave no `prompt` (e.g., "decomponha" -> `decompose_task`).
+3.  **Padrão**: Em caso de ambiguidade, `consult_council` é usado como padrão.
+
+**Exemplo de Uso (Decisão Arquitetural)**:
+
+```json
+{
+  "prompt": "Qual a melhor abordagem para implementar autenticação em uma API Node.js/Express: JWT ou sessions?",
+  "intent": "decision",
+  "config": {
+    "num_voters": 5
+  }
+}
+```
+
+**Exemplo de Uso (Decomposição de Tarefa)**:
+
+```json
+{
+  "prompt": "Decomponha a tarefa: 'Criar um sistema de login de usuário'",
+  "intent": "decomposition"
+}
+```
+
+---
+
+### Ferramentas Internas (Uso Avançado)
+
+As ferramentas abaixo são os componentes principais do `maker-council`. Embora ainda possam ser chamadas diretamente, a abordagem recomendada é usar a ferramenta `query` que gerencia o roteamento automaticamente.
+
 ### `consult_council`
 
-**Descrição**: Consulta completa com votação + julgamento
+**Descrição**: Consulta completa com votação + julgamento. **Uso direto recomendado apenas para cenários avançados que necessitam bypassar o roteador `query`.**
 
 **Parâmetros**:
 - `query` (string, obrigatório): Questão a ser analisada
@@ -131,7 +183,7 @@ Cada tarefa é decomposta em passos atômicos onde:
 
 ### `solve_with_voting`
 
-**Descrição**: Resolução rápida usando apenas votação (sem juiz)
+**Descrição**: Resolução rápida usando apenas votação (sem juiz). **Uso direto recomendado apenas para cenários avançados que necessitam bypassar o roteador `query`.**
 
 **Parâmetros**:
 - `query` (string, obrigatório): Questão a ser resolvida
@@ -146,7 +198,7 @@ Cada tarefa é decomposta em passos atômicos onde:
 
 ### `decompose_task`
 
-**Descrição**: Decompõe tarefas complexas em passos atômicos (MAD)
+**Descrição**: Decompõe tarefas complexas em passos atômicos (MAD). **Uso direto recomendado apenas para cenários avançados que necessitam bypassar o roteador `query`.**
 
 **Parâmetros**:
 - `task` (string, obrigatório): Tarefa a ser decomposta
@@ -202,6 +254,138 @@ Cada tarefa é decomposta em passos atômicos onde:
     }
   }
 }
+```
+
+## API Server Modo (OpenAI Compatible)
+
+Além do modo MCP, o MAKER-Council pode operar como um servidor HTTP que expõe uma API compatível com OpenAI. Isso permite integração com ferramentas que suportam provedores OpenAI-compatíveis.
+
+### Endpoint: `/v1/chat/completions`
+
+**Método**: `POST`
+
+#### Corpo da Requisição
+
+```json
+{
+  "model": "string",              // Opcional, ignorado pelo MAKER-Council
+  "messages": [                  // Obrigatório
+    {
+      "role": "system|user|assistant",
+      "content": "string"
+    }
+  ],
+  "temperature": number,         // Opcional, ignorado pelo MAKER-Council
+  "max_tokens": number,          // Opcional, ignorado pelo MAKER-Council
+  "maker_intent": "decision|code_review|decomposition|validation",  // Opcional
+  "maker_num_voters": number,    // Opcional, 1-10, padrão: 3
+  "maker_k": number              // Opcional, 1-10, padrão: 3
+}
+```
+
+#### Parâmetros MAKER-Council
+
+| Parâmetro | Tipo | Padrão | Descrição |
+|-----------|------|--------|-----------|
+| `maker_intent` | string | `inferido` | Intent explícito. Se não fornecido, inferido do prompt |
+| `maker_num_voters` | número | 3 | Número de microagentes (usado apenas com `consult_council`) |
+| `maker_k` | número | 3 | Margem de votação first-to-ahead-by-k |
+
+#### Corpo da Resposta
+
+```json
+{
+  "id": "chatcmpl-1234567890",
+  "object": "chat.completion",
+  "created": 1704067200,
+  "model": "maker-council-v1",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Resposta do MAKER-Council..."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 200,
+    "total_tokens": 300
+  }
+}
+```
+
+### Endpoint: `/v1/models`
+
+**Método**: `GET`
+
+Retorna um modelo falso para compatibilidade com clientes OpenAI.
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "maker-council-v1",
+      "object": "model",
+      "created": 1704067200,
+      "owned_by": "maker-council"
+    }
+  ]
+}
+```
+
+### Endpoint: `/health`
+
+**Método**: `GET`
+
+Verifica se o servidor está saudável.
+
+```json
+{
+  "status": "healthy",
+  "timestamp": "2024-01-01T12:00:00.000Z",
+  "version": "1.0.0"
+}
+```
+
+### Processamento Interno
+
+1. **Extração da Mensagem**: A API extrai a última mensagem do usuário do array `messages`.
+2. **Contexto Histórico**: Se houver mensagens anteriores, elas são incluídas como contexto no histórico.
+3. **Roteamento**: Baseado no `maker_intent` ou inferência, a requisição é roteada para:
+   - `consult_council`: Para decisões complexas
+   - `solve_with_voting`: Para validações e questões objetivas
+   - `decompose_task`: Para decomposição de tarefas
+4. **Formatação**: O resultado é formatado como uma resposta de chat completion OpenAI.
+
+### Configuração do Servidor
+
+O servidor é configurado através das mesmas variáveis de ambiente do modo MCP, mais:
+
+| Variável | Padrão | Descrição |
+|----------|--------|-----------|
+| `PORT` | 3000 | Porta onde o servidor HTTP escuta |
+
+### Exemplo de Uso Completo
+
+```bash
+# Iniciar o servidor
+npm run serve
+
+# Enviar uma requisição de decisão
+curl -X POST http://localhost:3000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      {"role": "system", "content": "Você é um arquiteto de software experiente."},
+      {"role": "user", "content": "Qual é a melhor abordagem para autenticação JWT vs Sessions em uma API REST?"}
+    ],
+    "maker_intent": "decision",
+    "maker_num_voters": 5
+  }'
 ```
 
 ## Compatibilidade com APIs
