@@ -96,7 +96,7 @@ function createConfig(): Config {
     voterModel: process.env.MAKER_VOTER_MODEL || 'gemini-2.5-flash-lite',
     k: getNumericEnv("MAKER_K", 3),
     maxTokens: getNumericEnv("MAKER_MAX_TOKENS", 16000),
-    maxRounds: getNumericEnv("MAKER_MAX_ROUNDS", 50),
+    maxRounds: getNumericEnv("MAKER_MAX_ROUNDS", 10),
     port: getNumericEnv("MAKER_API_PORT", 8338),
     fastMode: getBooleanEnv("MAKER_FAST_MODE", true),
     includeReport: getBooleanEnv("MAKER_INCLUDE_REPORT", false),
