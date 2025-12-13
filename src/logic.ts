@@ -370,6 +370,10 @@ const SIMPLE_PROMPT_PATTERNS = [
 export function cleanPrompt(prompt: string): string {
   let cleaned = prompt.trim();
   
+  // Remove o bloco <environment_details>...</environment_details> completamente
+  // Usa flag 's' (dotAll) para que '.' capture também quebras de linha
+  cleaned = cleaned.replace(/<environment_details>[\s\S]*?<\/environment_details>/gi, '');
+  
   // Remove tags XML comuns
   cleaned = cleaned.replace(/<task>\s*/gi, '');
   cleaned = cleaned.replace(/\s*<\/task>/gi, '');

@@ -264,5 +264,14 @@ if (isMCPMode) {
   main().catch(console.error);
 } else {
   // Modo standalone: iniciar servidor HTTP Express (comportamento padrão para dev)
-  import('./server.js').catch(console.error);
+  // Usar IIFE assíncrona com await para garantir que o processo aguarde o servidor iniciar
+  (async () => {
+    try {
+      // await garante que o script principal espere a execução do módulo do servidor
+      await import('./server.js');
+    } catch (error) {
+      console.error('Falha ao iniciar o servidor HTTP:', error);
+      process.exit(1);
+    }
+  })();
 }
