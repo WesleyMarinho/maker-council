@@ -1,6 +1,6 @@
 /**
- * Servidor API compatível com OpenAI para MAKER-Council
- * Expõe o endpoint /v1/chat/completions usando a lógica do MAKER-Council
+ * OpenAI-compatible API server for MAKER-Council
+ * Exposes the /v1/chat/completions endpoint using MAKER-Council logic
  */
 
 import express from 'express';
@@ -13,7 +13,7 @@ import {
 } from './logic.js';
 import { config } from './config.js';
 
-// A porta agora é obtida diretamente do objeto de configuração
+// The port is now obtained directly from the configuration object
 const PORT = config.port;
 const app = express();
 
@@ -22,7 +22,7 @@ app.use(cors());
 app.use(bodyParser.json({ limit: '500mb' }));
 app.use(bodyParser.urlencoded({ limit: '500mb', extended: true }));
 
-// Interface para requisição OpenAI Chat Completions
+// Interface for OpenAI Chat Completions request
 interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant' | 'function';
   content: any;
@@ -39,13 +39,13 @@ interface OpenAIRequest {
   presence_penalty?: number;
   stop?: string | string[];
   user?: string;
-  // Parâmetros customizados do MAKER-Council
+  // MAKER-Council custom parameters
   maker_intent?: 'decision' | 'code_review' | 'decomposition' | 'validation';
   maker_num_voters?: number;
   maker_k?: number;
 }
 
-// Interface para resposta OpenAI Chat Completions
+// Interface for OpenAI Chat Completions response
 interface OpenAIChoice {
   index: number;
   message: {
@@ -70,12 +70,12 @@ interface OpenAIResponse {
   usage?: OpenAIUsage;
 }
 
-// Helper para gerar ID único no estilo OpenAI
+// Helper to generate OpenAI-style unique ID
 function generateOpenAIId(): string {
   return `chatcmpl-${Date.now()}`;
 }
 
-// Extrai a última mensagem do usuário do array de mensagens
+// Extracts the last user message from the messages array
 function extractLastUserMessage(messages: OpenAIMessage[]): string {
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i].role === 'user') {
@@ -86,18 +86,18 @@ function extractLastUserMessage(messages: OpenAIMessage[]): string {
       }
       
       if (Array.isArray(content)) {
-        // Extrair texto de partes do tipo 'text'
+        // Extract text from 'text' type parts
         return content
           .filter((part: any) => part?.type === 'text' && part?.text)
           .map((part: any) => part.text)
           .join('\n');
       }
 
-      // Conteúdo nulo ou indefinido (use string vazia como fallback)
+      // Null or undefined content (use empty string as fallback)
       return '';
     }
   }
-  throw new Error('Nenhuma mensagem de usuário encontrada');
+  throw new Error('No user message found');
 }
 
 // Função auxiliar para enviar chunks SSE
@@ -126,7 +126,7 @@ app.post('/v1/chat/completions', async (req, res) => {
     const openaiReq: OpenAIRequest = req.body;
     
     if (!openaiReq.messages || !Array.isArray(openaiReq.messages)) {
-      console.log('[DEBUG] ERRO: messages não é um array válido');
+      console.log('[DEBUG] ERROR: messages is not a valid array');
       return res.status(400).json({
         error: {
           message: 'O campo "messages" é obrigatório e deve ser um array',
@@ -150,7 +150,7 @@ app.post('/v1/chat/completions', async (req, res) => {
         k: openaiReq.maker_k
       }
     };
-    console.log('[DEBUG] QueryRequest construído:', JSON.stringify(queryRequest, null, 2));
+    console.log('[DEBUG] QueryRequest constructed:', JSON.stringify(queryRequest, null, 2));
 
     // Adicionar contexto se houver mensagens anteriores
     if (openaiReq.messages.length > 1) {
@@ -160,7 +160,7 @@ app.post('/v1/chat/completions', async (req, res) => {
           content: msg.content
         }))
       };
-      console.log('[DEBUG] Contexto adicionado com', openaiReq.messages.length, 'mensagens');
+      console.log('[DEBUG] Context added with', openaiReq.messages.length, 'messages');
     }
 
     // Processar com o MAKER-Council usando o objeto de configuração importado
@@ -222,7 +222,7 @@ app.post('/v1/chat/completions', async (req, res) => {
       }
       
       // Enviar o chunk final com finish_reason
-      console.log('[DEBUG] Enviando chunk final...');
+      console.log('[DEBUG] Sending final chunk...');
       sendSSEChunk(res, {
         id,
         object: 'chat.completion.chunk',
@@ -236,7 +236,7 @@ app.post('/v1/chat/completions', async (req, res) => {
       });
       
       // Enviar o marcador [DONE]
-      console.log('[DEBUG] Enviando [DONE]...');
+      console.log('[DEBUG] Sending [DONE]...');
       res.write('data: [DONE]\n\n');
       res.end();
       console.log('[DEBUG] Streaming finalizado com sucesso');
@@ -289,7 +289,7 @@ app.post('/v1/chat/completions', async (req, res) => {
   } catch (error) {
     console.error('[Server] Erro no endpoint /v1/chat/completions:', error);
     
-    // Se estiver em modo de streaming, enviar erro via SSE
+    // If in streaming mode, send error via SSE
     if (req.body?.stream === true && !res.headersSent) {
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
@@ -305,10 +305,10 @@ app.post('/v1/chat/completions', async (req, res) => {
       res.write('data: [DONE]\n\n');
       res.end();
     } else {
-      // Retornar erro no formato OpenAI
+      // Return error in OpenAI format
       res.status(500).json({
         error: {
-          message: error instanceof Error ? error.message : 'Erro interno do servidor',
+          message: error instanceof Error ? error.message : 'Internal server error',
           type: 'server_error',
           code: 'internal_error'
         }
@@ -366,11 +366,11 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // Iniciar servidor
 app.listen(PORT, () => {
-  console.log(`\n🚀 MAKER-Council API Server iniciado na porta ${PORT}`);
+  console.log(`\n🚀 MAKER-Council API Server started on port ${PORT}`);
   console.log(`📍 Endpoint: http://localhost:${PORT}/v1/chat/completions`);
   console.log(`🏥 Health check: http://localhost:${PORT}/health`);
   console.log(`📚 Models: http://localhost:${PORT}/v1/models`);
-  console.log('\n⚙️  Configuração:');
+  console.log('\n⚙️  Configuration:');
   console.log(`   - LLM Provider URL: ${config.apiUrl}`);
   console.log(`   - Judge Model: ${config.judgeModel}`);
   console.log(`   - Voter Model: ${config.voterModel}`);

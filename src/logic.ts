@@ -1,6 +1,6 @@
 /**
- * Lógica de processamento do MAKER-Council
- * Extrai as funções de processamento para reutilização no servidor API
+ * MAKER-Council processing logic
+ * Extracts processing functions for reuse in the API server
  */
 
 import OpenAI from "openai";
@@ -8,10 +8,10 @@ import { config } from "./config.js";
 export type { Config as MakerConfig } from "./config.js";
 
 // ============================================================================
-// TIPOS E INTERFACES
+// TYPES AND INTERFACES
 // ============================================================================
 
-// A interface MakerConfig agora é importada e re-exportada de config.ts
+// The MakerConfig interface is now imported and re-exported from config.ts
 
 export interface VotingState {
   votes: Map<string, number>;
@@ -66,7 +66,7 @@ export interface QueryResponse {
 }
 
 // ============================================================================
-// CLIENTE LLM (OpenAI-compatible)
+// LLM CLIENT (OpenAI-compatible)
 // ============================================================================
 
 let openaiClient: OpenAI | null = null;
@@ -91,7 +91,7 @@ export async function createMessage(
   const client = getClient();
   
   try {
-    console.error(`[MAKER] Chamando API: model=${model}, temp=${temperature}, maxTokens=${maxTokens}`);
+    console.error(`[MAKER] Calling API: model=${model}, temp=${temperature}, maxTokens=${maxTokens}`);
     console.error(`[MAKER] Base URL: ${config.apiUrl}`);
     
     const response = await client.chat.completions.create({
@@ -104,7 +104,7 @@ export async function createMessage(
       max_tokens: maxTokens,
     });
 
-    console.error(`[MAKER] Resposta recebida: choices=${response.choices?.length || 0}`);
+    console.error(`[MAKER] Response received: choices=${response.choices?.length || 0}`);
     
     const message = response.choices?.[0]?.message as any;
     let text = message?.content || "";
@@ -120,17 +120,17 @@ export async function createMessage(
     
     const tokens = response.usage?.completion_tokens || Math.ceil(text.length / 4);
     
-    console.error(`[MAKER] Texto extraído: ${text.substring(0, 100)}... (${tokens} tokens)`);
+    console.error(`[MAKER] Extracted text: ${text.substring(0, 100)}... (${tokens} tokens)`);
     console.error(`[MAKER] Has reasoning: ${!!reasoningText}, Has content: ${!!message?.content}`);
     
     return { text, tokens };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`[MAKER] Erro na API: ${errorMessage}`);
+    console.error(`[MAKER] API error: ${errorMessage}`);
     if (error instanceof Error && 'response' in error) {
       console.error(`[MAKER] Response details:`, JSON.stringify((error as any).response?.data || {}));
     }
-    throw new Error(`Erro na API: ${errorMessage}`);
+    throw new Error(`API error: ${errorMessage}`);
   }
 }
 
@@ -146,7 +146,7 @@ export function checkRedFlags(
   if (numTokens > maxTokens) {
     return {
       isValid: false,
-      reason: `Resposta muito longa (${numTokens} tokens > ${maxTokens})`,
+      reason: `Response too long (${numTokens} tokens > ${maxTokens})`,
       content: "",
     };
   }
@@ -154,7 +154,7 @@ export function checkRedFlags(
   if (!response.trim()) {
     return {
       isValid: false,
-      reason: "Resposta vazia",
+      reason: "Empty response",
       content: "",
     };
   }
@@ -175,7 +175,7 @@ export function extractAnswer(response: string): string {
     return codeMatch[1].trim();
   }
 
-  const markers = ["Resposta:", "Solução:", "Answer:", "Solution:", "Result:"];
+  const markers = ["Response:", "Solution:", "Answer:", "Result:"];
   for (const marker of markers) {
     if (response.includes(marker)) {
       return response.split(marker)[1].trim();
@@ -476,8 +476,8 @@ export function extractCleanResponse(rawResult: string): string {
     return decisionMatch[1].trim();
   }
   
-  // Tenta extrair "Resposta Vencedora" (para solve_with_voting)
-  const winnerMatch = rawResult.match(/## Resposta Vencedora\s*\n\n([\s\S]*?)(?=\n## |$)/);
+  // Try to extract "Winning Response" (for solve_with_voting)
+  const winnerMatch = rawResult.match(/## Winning Response\s*\n\n([\s\S]*?)(?=\n## |$)/);
   if (winnerMatch) {
     return winnerMatch[1].trim();
   }
@@ -593,8 +593,8 @@ export function buildFullPrompt(prompt: string, context?: QueryContext): string 
 export async function handleQuery(
   request: QueryRequest
 ): Promise<QueryResponse> {
-  console.error('\n[LOGIC DEBUG] ========== handleQuery INICIADO ==========');
-  console.error('[LOGIC DEBUG] Request recebido:', JSON.stringify(request, null, 2));
+  console.error('\n[LOGIC DEBUG] ========== handleQuery STARTED ==========');
+  console.error('[LOGIC DEBUG] Request received:', JSON.stringify(request, null, 2));
   console.error('[LOGIC DEBUG] request.prompt:', request.prompt);
   console.error('[LOGIC DEBUG] request.prompt length:', request.prompt?.length || 0);
   
@@ -609,14 +609,14 @@ export async function handleQuery(
   
   // Se fastMode está habilitado e o prompt é simples, responde diretamente
   if (config.fastMode && simpleCheck) {
-    console.error('[LOGIC DEBUG] MODO RÁPIDO ATIVADO - prompt simples detectado');
+    console.error('[LOGIC DEBUG] FAST MODE ACTIVATED - simple prompt detected');
     
     const fastResponse = await handleFastMode(request.prompt);
     const totalTime = (Date.now() - startTime) / 1000;
     
-    console.error('[LOGIC DEBUG] Resposta rápida:', fastResponse.substring(0, 100));
-    console.error('[LOGIC DEBUG] Tempo total (modo rápido):', totalTime, 'segundos');
-    console.error('[LOGIC DEBUG] ========== handleQuery FINALIZADO (FAST) ==========\n');
+    console.error('[LOGIC DEBUG] Fast response:', fastResponse.substring(0, 100));
+    console.error('[LOGIC DEBUG] Total time (fast mode):', totalTime, 'seconds');
+    console.error('[LOGIC DEBUG] ========== handleQuery COMPLETED (FAST) ==========\n');
     
     return {
       result: fastResponse,
@@ -636,11 +636,11 @@ export async function handleQuery(
   const intent: Intent = request.intent || inferIntent(request.prompt);
   const toolUsed: ToolUsed = intentToTool(intent);
   
-  console.error('[LOGIC DEBUG] Intent inferido:', intent);
-  console.error('[LOGIC DEBUG] Tool a ser usada:', toolUsed);
+  console.error('[LOGIC DEBUG] Inferred intent:', intent);
+  console.error('[LOGIC DEBUG] Tool to be used:', toolUsed);
   
   const fullPrompt = buildFullPrompt(request.prompt, request.context);
-  console.error('[LOGIC DEBUG] fullPrompt construído:', fullPrompt.substring(0, 200) + '...');
+  console.error('[LOGIC DEBUG] fullPrompt constructed:', fullPrompt.substring(0, 200) + '...');
   console.error('[LOGIC DEBUG] fullPrompt length:', fullPrompt.length);
   
   const numVoters = request.config?.num_voters;
@@ -651,7 +651,7 @@ export async function handleQuery(
   let rawOutput: string;
   let result: string | object;
   
-  console.error('[LOGIC DEBUG] Executando tool:', toolUsed);
+  console.error('[LOGIC DEBUG] Executing tool:', toolUsed);
   switch (toolUsed) {
     case 'consult_council':
       rawOutput = await handleConsultCouncil(fullPrompt, numVoters, k);
@@ -673,12 +673,12 @@ export async function handleQuery(
       break;
   }
   
-  console.error('[LOGIC DEBUG] rawOutput recebido:', rawOutput?.substring(0, 200) + '...');
+  console.error('[LOGIC DEBUG] rawOutput received:', rawOutput?.substring(0, 200) + '...');
   console.error('[LOGIC DEBUG] rawOutput length:', rawOutput?.length || 0);
   
   const totalTime = (Date.now() - startTime) / 1000;
-  console.error('[LOGIC DEBUG] Tempo total:', totalTime, 'segundos');
-  console.error('[LOGIC DEBUG] ========== handleQuery FINALIZADO ==========\n');
+  console.error('[LOGIC DEBUG] Total time:', totalTime, 'seconds');
+  console.error('[LOGIC DEBUG] ========== handleQuery COMPLETED ==========\n');
   
   return {
     result,
@@ -740,7 +740,7 @@ export async function handleConsultCouncil(
     );
     judgeResponse = text;
   } catch (error) {
-    judgeResponse = `Erro no julgamento: ${error instanceof Error ? error.message : String(error)}`;
+    judgeResponse = `Judgment error: ${error instanceof Error ? error.message : String(error)}`;
   }
 
   const judgeTime = (Date.now() - judgeStart) / 1000;
@@ -774,7 +774,7 @@ export async function handleSolveWithVoting(
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
 
-  return `# Resultado da Votação First-to-ahead-by-${k}\n\n## Métricas\n- Total de amostras: ${state.totalSamples}\n- Amostras válidas: ${state.validSamples}\n- Red-flagged: ${state.redFlagged}\n- Candidatos únicos: ${state.votes.size}\n\n## Performance\n- Tempo total: ${state.elapsedTime.toFixed(2)}s\n\n## Distribuição de Votos\n${votesArray.map(([_, votes], i) => `- Candidato ${i + 1}: ${votes} votos`).join("\n")}\n\n## Resposta Vencedora\n\n${winner}`;
+  return `# First-to-ahead-by-${k} Voting Result\n\n## Metrics\n- Total samples: ${state.totalSamples}\n- Valid samples: ${state.validSamples}\n- Red-flagged: ${state.redFlagged}\n- Unique candidates: ${state.votes.size}\n\n## Performance\n- Total time: ${state.elapsedTime.toFixed(2)}s\n\n## Vote Distribution\n${votesArray.map(([_, votes], i) => `- Candidate ${i + 1}: ${votes} votes`).join("\n")}\n\n## Winning Response\n\n${winner}`;
 }
 
 export async function handleDecomposeTask(task: string): Promise<string> {

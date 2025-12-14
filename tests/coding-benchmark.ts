@@ -2,7 +2,7 @@
 /**
  * MAKER-Council Coding Benchmark
  * 
- * Avalia modelos em tarefas de codificação reais:
+ * Evaluates models on real coding tasks:
  * - Geração de código
  * - Correção de bugs
  * - Refatoração
@@ -387,7 +387,7 @@ function evaluateResponse(task: CodingTask, response: string): TaskResult["score
     }
   }
 
-  // 3. Avaliar qualidade do código (heurísticas)
+  // 3. Evaluate code quality (heuristics)
   let qualityScore = 50; // base
   
   // Tem tipagem TypeScript?
@@ -417,7 +417,7 @@ function evaluateResponse(task: CodingTask, response: string): TaskResult["score
 
   scores.codeQuality = Math.min(100, qualityScore);
 
-  // 4. Avaliar seguimento de instruções
+  // 4. Evaluate instruction following
   let instructionScore = 50;
   
   // Retornou apenas código (sem explicações longas)?

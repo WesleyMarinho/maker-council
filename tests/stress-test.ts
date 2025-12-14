@@ -2,7 +2,7 @@
 /**
  * MAKER-Council Stress Test
  * 
- * Teste de alto desempenho para requisições em paralelo com:
+ * High-performance test for parallel requests with:
  * - Pool de concorrência controlada
  * - Tool calling (function calling)
  * - Métricas de performance (latência, throughput, erros)
@@ -182,7 +182,7 @@ function executeToolCall(name: string, args: Record<string, unknown>): string {
       });
     case "calculate":
       try {
-        // Avaliação segura de expressões simples
+        // Safe evaluation of simple expressions
         const expr = String(args.expression).replace(/[^0-9+\-*/().]/g, "");
         const result = Function(`"use strict"; return (${expr})`)();
         return JSON.stringify({ result });
