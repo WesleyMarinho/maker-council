@@ -1,58 +1,58 @@
 /**
- * Módulo de Configuração Centralizado
+ * Centralized Configuration Module
  *
- * Responsável por carregar, validar e fornecer todas as configurações
- * da aplicação a partir de variáveis de ambiente.
+ * Responsible for loading, validating, and providing all application
+ * configurations from environment variables.
  */
 import dotenv from "dotenv";
 
-// Carrega as variáveis do arquivo .env para process.env
+// Load variables from .env file into process.env
 dotenv.config();
 
 /**
- * Interface que define a estrutura do objeto de configuração.
- * Garante tipagem forte para todas as variáveis de ambiente usadas.
+ * Interface that defines the configuration object structure.
+ * Ensures strong typing for all environment variables used.
  */
 export interface Config {
-  /** Chave de API para o serviço MAKER. Essencial para autenticação. */
+  /** API key for the MAKER service. Essential for authentication. */
   apiKey: string;
 
-  /** URL base para a API do MAKER. */
+  /** Base URL for the MAKER API. */
   apiUrl: string;
 
-  /** Modelo de linguagem a ser usado pelo Juiz Sênior. */
+  /** Language model to be used by the Senior Judge. */
   judgeModel: string;
 
-  /** Modelo de linguagem a ser usado pelos Microagentes (Voters). */
+  /** Language model to be used by Microagents (Voters). */
   voterModel: string;
 
-  /** Margem de votação 'k' para o algoritmo first-to-ahead-by-k. */
+  /** Voting margin 'k' for the first-to-ahead-by-k algorithm. */
   k: number;
 
-  /** Número máximo de tokens para as respostas geradas pela LLM. */
+  /** Maximum number of tokens for LLM-generated responses. */
   maxTokens: number;
 
-  /** Número máximo de rodadas de votação antes de forçar uma decisão. */
+  /** Maximum number of voting rounds before forcing a decision. */
   maxRounds: number;
   
-  /** Porta em que o servidor da API irá escutar. */
+  /** Port on which the API server will listen. */
   port: number;
 
-  /** Habilita modo rápido para prompts simples (saudações, perguntas curtas). */
+  /** Enables fast mode for simple prompts (greetings, short questions). */
   fastMode: boolean;
 
-  /** Inclui relatório técnico completo na resposta. Se false, retorna apenas a decisão. */
+  /** Includes full technical report in response. If false, returns only the decision. */
   includeReport: boolean;
 
-  /** Limite de caracteres para considerar um prompt como "simples". */
+  /** Character limit to consider a prompt as "simple". */
   simplePromptMaxLength: number;
 }
 
 /**
- * Função auxiliar para ler e converter uma variável de ambiente numérica.
- * @param envVar - O nome da variável de ambiente.
- * @param defaultValue - O valor padrão a ser usado se a variável não estiver definida ou for inválida.
- * @returns O valor numérico da variável ou o padrão.
+ * Helper function to read and convert a numeric environment variable.
+ * @param envVar - The environment variable name.
+ * @param defaultValue - The default value to use if the variable is not defined or invalid.
+ * @returns The numeric value of the variable or the default.
  */
 function getNumericEnv(envVar: string, defaultValue: number): number {
   const value = process.env[envVar];
@@ -64,14 +64,14 @@ function getNumericEnv(envVar: string, defaultValue: number): number {
 }
 
 /**
- * Função para ler, validar e construir o objeto de configuração.
- * @returns Um objeto de configuração imutável.
+ * Function to read, validate, and build the configuration object.
+ * @returns An immutable configuration object.
  */
 /**
- * Função auxiliar para ler uma variável de ambiente booleana.
- * @param envVar - O nome da variável de ambiente.
- * @param defaultValue - O valor padrão a ser usado se a variável não estiver definida.
- * @returns O valor booleano da variável ou o padrão.
+ * Helper function to read a boolean environment variable.
+ * @param envVar - The environment variable name.
+ * @param defaultValue - The default value to use if the variable is not defined.
+ * @returns The boolean value of the variable or the default.
  */
 function getBooleanEnv(envVar: string, defaultValue: boolean): boolean {
   const value = process.env[envVar];
@@ -82,11 +82,11 @@ function getBooleanEnv(envVar: string, defaultValue: boolean): boolean {
 }
 
 function createConfig(): Config {
-  // Unifica MAKER_API_URL e MAKER_BASE_URL.
-  // MAKER_API_URL tem precedência.
+  // Unify MAKER_API_URL and MAKER_BASE_URL.
+  // MAKER_API_URL takes precedence.
   const apiUrl = process.env.MAKER_API_URL || process.env.MAKER_BASE_URL || 'http://localhost:8338/v1';
 
-  // O modelo padrão pode ser definido por MAKER_API_MODEL.
+  // The default model can be defined by MAKER_API_MODEL.
   const defaultModel = process.env.MAKER_API_MODEL || 'gemini-3-pro-preview';
 
   const appConfig: Config = {
@@ -103,16 +103,16 @@ function createConfig(): Config {
     simplePromptMaxLength: getNumericEnv("MAKER_SIMPLE_PROMPT_MAX_LENGTH", 50),
   };
 
-  // Validação crítica: a chave de API é obrigatória.
+  // Critical validation: the API key is required.
   if (!appConfig.apiKey) {
-    console.error("Erro Crítico: A variável de ambiente MAKER_API_KEY não está definida.");
-    console.error("A aplicação não pode iniciar sem uma chave de API.");
+    console.error("Critical Error: The MAKER_API_KEY environment variable is not defined.");
+    console.error("The application cannot start without an API key.");
     process.exit(1);
   }
 
-  // Congela o objeto para torná-lo imutável durante o ciclo de vida da aplicação.
+  // Freeze the object to make it immutable during the application lifecycle.
   return Object.freeze(appConfig);
 }
 
-// Exporta uma instância única e imutável da configuração.
+// Export a single immutable instance of the configuration.
 export const config = createConfig();

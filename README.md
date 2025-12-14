@@ -1,28 +1,28 @@
 # MAKER-Council MCP Server
 
-Implementação do paper **"MAKER: Massively Decomposed Agentic Processes"** (arXiv:2511.09030v1).
+Implementation of the paper **"MAKER: Massively Decomposed Agentic Processes"** (arXiv:2511.09030v1).
 
 **MAKER** = **M**aximal **A**gentic decomposition + first-to-ahead-by-**K** **E**rror correction + **R**ed-flagging
 
-## 🚀 Instalação
+## 🚀 Installation
 
 ```bash
 npm install
 npm run build
 ```
 
-## ⚙️ Configuração no MCP
+## ⚙️ MCP Configuration
 
-Adicione ao seu arquivo de configuração MCP (ex: `mcp.json` ou `claude_desktop_config.json`):
+Add to your MCP configuration file (e.g., `mcp.json` or `claude_desktop_config.json`):
 
 ```json
 {
   "mcpServers": {
     "maker-council": {
       "command": "node",
-      "args": ["caminho/para/maker-council/dist/index.js"],
+      "args": ["path/to/maker-council/dist/index.js"],
       "env": {
-        "MAKER_API_KEY": "sua-api-key-aqui",
+        "MAKER_API_KEY": "your-api-key-here",
         "MAKER_BASE_URL": "https://api.openai.com/v1",
         "MAKER_JUDGE_MODEL": "gpt-4",
         "MAKER_VOTER_MODEL": "gpt-3.5-turbo",
@@ -34,16 +34,16 @@ Adicione ao seu arquivo de configuração MCP (ex: `mcp.json` ou `claude_desktop
 }
 ```
 
-### Exemplo com GLM (Z.AI)
+### Example with GLM (Z.AI)
 
 ```json
 {
   "mcpServers": {
     "maker-council": {
       "command": "node",
-      "args": ["caminho/para/maker-council/dist/index.js"],
+      "args": ["path/to/maker-council/dist/index.js"],
       "env": {
-        "MAKER_API_KEY": "sua-glm-api-key",
+        "MAKER_API_KEY": "your-glm-api-key",
         "MAKER_BASE_URL": "https://open.bigmodel.cn/api/paas/v4",
         "MAKER_JUDGE_MODEL": "glm-4",
         "MAKER_VOTER_MODEL": "glm-4-flash",
@@ -55,16 +55,16 @@ Adicione ao seu arquivo de configuração MCP (ex: `mcp.json` ou `claude_desktop
 }
 ```
 
-### Exemplo com OpenRouter
+### Example with OpenRouter
 
 ```json
 {
   "mcpServers": {
     "maker-council": {
       "command": "node",
-      "args": ["caminho/para/maker-council/dist/index.js"],
+      "args": ["path/to/maker-council/dist/index.js"],
       "env": {
-        "MAKER_API_KEY": "sua-openrouter-key",
+        "MAKER_API_KEY": "your-openrouter-key",
         "MAKER_BASE_URL": "https://openrouter.ai/api/v1",
         "MAKER_JUDGE_MODEL": "anthropic/claude-3-sonnet",
         "MAKER_VOTER_MODEL": "anthropic/claude-3-haiku",
@@ -75,21 +75,21 @@ Adicione ao seu arquivo de configuração MCP (ex: `mcp.json` ou `claude_desktop
 }
 ```
 
-## 🛠️ Ferramentas Disponíveis
+## 🛠️ Available Tools
 
-### `query` (Ponto de Entrada Recomendado)
-Ponto de entrada unificado que roteia a requisição para a ferramenta interna mais adequada (`consult_council`, `solve_with_voting`, `decompose_task`). **Este é o método recomendado para todas as interações.**
+### `query` (Recommended Entry Point)
+Unified entry point that routes the request to the most appropriate internal tool (`consult_council`, `solve_with_voting`, `decompose_task`). **This is the recommended method for all interactions.**
 
-**Parâmetros:**
-- `prompt` (obrigatório): A questão ou tarefa a ser executada.
-- `intent` (opcional): Ajuda a direcionar a requisição (`decision`, `decomposition`, `validation`).
-- `context` (opcional): Objeto com contexto adicional (e.g., `code`).
-- `config` (opcional): Sobrepõe configurações como `num_voters` e `k`.
+**Parameters:**
+- `prompt` (required): The question or task to be executed.
+- `intent` (optional): Helps direct the request (`decision`, `decomposition`, `validation`).
+- `context` (optional): Object with additional context (e.g., `code`).
+- `config` (optional): Overrides configuration such as `num_voters` and `k`.
 
-**Exemplo de Uso:**
+**Usage Example:**
 ```json
 {
-  "prompt": "Refatore esta função para ser mais eficiente.",
+  "prompt": "Refactor this function to be more efficient.",
   "context": {
     "code": "function inefficient() { ... }"
   },
@@ -99,52 +99,52 @@ Ponto de entrada unificado que roteia a requisição para a ferramenta interna m
 
 ---
 
-### Ferramentas Internas (Uso Avançado)
+### Internal Tools (Advanced Usage)
 
 ### `consult_council`
-Consulta completa com votação e julgamento. **Normalmente invocado via `query`.**
+Full consultation with voting and judgment. **Normally invoked via `query`.**
 
-**Parâmetros:**
-- `query` (obrigatório): A questão ou código a ser analisado.
-- `num_voters` (opcional, padrão: 3): Número de microagentes.
-- `k` (opcional, padrão: 3): Margem de votação.
+**Parameters:**
+- `query` (required): The question or code to be analyzed.
+- `num_voters` (optional, default: 3): Number of microagents.
+- `k` (optional, default: 3): Voting margin.
 
 ### `solve_with_voting`
-Resolve usando apenas votação. **Normalmente invocado via `query`.**
+Solve using only voting. **Normally invoked via `query`.**
 
-**Parâmetros:**
-- `query` (obrigatório): A questão a ser resolvida.
-- `k` (opcional, padrão: 3): Margem de votação.
+**Parameters:**
+- `query` (required): The question to be solved.
+- `k` (optional, default: 3): Voting margin.
 
 ### `decompose_task`
-Decompõe tarefas complexas. **Normalmente invocado via `query`.**
+Decomposes complex tasks. **Normally invoked via `query`.**
 
-**Parâmetros:**
-- `task` (obrigatório): A tarefa a ser decomposta.
+**Parameters:**
+- `task` (required): The task to be decomposed.
 
-## 🌐 Modo API Server (OpenAI Compatible)
+## 🌐 API Server Mode (OpenAI Compatible)
 
-O MAKER-Council também pode ser executado como um servidor HTTP que expõe uma API compatível com OpenAI. Isso permite que você configure o MAKER-Council como um "provedor de modelo" em ferramentas como o Roo Code, Cursor, ou qualquer cliente OpenAI-compatible.
+MAKER-Council can also be run as an HTTP server that exposes an OpenAI-compatible API. This allows you to configure MAKER-Council as a "model provider" in tools like Roo Code, Cursor, or any OpenAI-compatible client.
 
-### Iniciando o Servidor
+### Starting the Server
 
 ```bash
-# Iniciar o servidor API
+# Start the API server
 npm run serve
 
-# O servidor estará disponível em http://localhost:3000
+# The server will be available at http://localhost:3000
 ```
 
-### Configurando um Cliente
+### Configuring a Client
 
-Configure seu cliente para usar:
-- **URL Base**: `http://localhost:3000/v1`
-- **Modelo**: `maker-council-v1` (ou qualquer nome, será ignorado)
-- **API Key**: Não necessária (ou qualquer valor para autenticação básica)
+Configure your client to use:
+- **Base URL**: `http://localhost:3000/v1`
+- **Model**: `maker-council-v1` (or any name, will be ignored)
+- **API Key**: Not required (or any value for basic authentication)
 
-#### Exemplo de Configuração no Roo Code
+#### Example Configuration in Roo Code
 
-No arquivo de configuração do Roo Code:
+In the Roo Code configuration file:
 
 ```json
 {
@@ -157,7 +157,7 @@ No arquivo de configuração do Roo Code:
 }
 ```
 
-#### Exemplo de Configuração no Cursor
+#### Example Configuration in Cursor
 
 ```json
 {
@@ -167,16 +167,16 @@ No arquivo de configuração do Roo Code:
 }
 ```
 
-### Parâmetros Especiais do MAKER-Council
+### MAKER-Council Special Parameters
 
-A API aceita parâmetros adicionais no corpo da requisição para controlar o comportamento do MAKER-Council:
+The API accepts additional parameters in the request body to control MAKER-Council behavior:
 
 ```json
 {
   "messages": [
     {
       "role": "user",
-      "content": "Qual é a melhor abordagem para implementar autenticação em APIs REST?"
+      "content": "What is the best approach for implementing authentication in REST APIs?"
     }
   ],
   "maker_intent": "decision",
@@ -185,43 +185,43 @@ A API aceita parâmetros adicionais no corpo da requisição para controlar o co
 }
 ```
 
-| Parâmetro | Tipo | Valores Possíveis | Descrição |
-|-----------|------|-------------------|-----------|
-| `maker_intent` | string | `decision`, `code_review`, `decomposition`, `validation` | Força o uso de uma ferramenta específica |
-| `maker_num_voters` | número | 1-10 | Número de microagentes (padrão: 3) |
-| `maker_k` | número | 1-10 | Margem de votação (padrão: 3) |
+| Parameter | Type | Possible Values | Description |
+|-----------|------|-----------------|-------------|
+| `maker_intent` | string | `decision`, `code_review`, `decomposition`, `validation` | Forces the use of a specific tool |
+| `maker_num_voters` | number | 1-10 | Number of microagents (default: 3) |
+| `maker_k` | number | 1-10 | Voting margin (default: 3) |
 
-### Endpoints Disponíveis
+### Available Endpoints
 
-- `POST /v1/chat/completions` - Endpoint principal compatível com OpenAI
-- `GET /v1/models` - Lista modelos disponíveis (compatibilidade)
-- `GET /health` - Health check do servidor
+- `POST /v1/chat/completions` - Main OpenAI-compatible endpoint
+- `GET /v1/models` - List available models (compatibility)
+- `GET /health` - Server health check
 
-### Testando com curl
+### Testing with curl
 
 ```bash
 curl -X POST http://localhost:3000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "messages": [{"role": "user", "content": "Qual é a melhor abordagem para autenticação em APIs?"}],
+    "messages": [{"role": "user", "content": "What is the best approach for authentication in APIs?"}],
     "maker_intent": "decision"
   }'
 ```
 
-## 📊 Variáveis de Ambiente
+## 📊 Environment Variables
 
-| Variável | Descrição | Padrão |
-|----------|-----------|--------|
-| `MAKER_API_KEY` | Chave da API (obrigatório) | - |
-| `MAKER_BASE_URL` | URL base da API | `https://api.openai.com/v1` |
-| `MAKER_JUDGE_MODEL` | Modelo para o juiz | `gpt-4` |
-| `MAKER_VOTER_MODEL` | Modelo para os voters | `gpt-3.5-turbo` |
-| `MAKER_K` | Margem de votação | `3` |
-| `MAKER_MAX_TOKENS` | Limite para red-flagging | `750` |
-| `MAKER_MAX_ROUNDS` | Máximo de rounds | `50` |
-| `PORT` | Porta do servidor API | `3000` |
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MAKER_API_KEY` | API key (required) | - |
+| `MAKER_BASE_URL` | API base URL | `https://api.openai.com/v1` |
+| `MAKER_JUDGE_MODEL` | Model for the judge | `gpt-4` |
+| `MAKER_VOTER_MODEL` | Model for the voters | `gpt-3.5-turbo` |
+| `MAKER_K` | Voting margin | `3` |
+| `MAKER_MAX_TOKENS` | Limit for red-flagging | `750` |
+| `MAKER_MAX_ROUNDS` | Maximum rounds | `50` |
+| `PORT` | API server port | `3000` |
 
-## 📄 Referência
+## 📄 Reference
 
 Paper: [MAKER: Massively Decomposed Agentic Processes](https://arxiv.org/abs/2511.09030)
 

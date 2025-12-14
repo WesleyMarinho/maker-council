@@ -1,29 +1,29 @@
 /**
- * Suite de Testes End-to-End para MAKER-Council API
+ * End-to-End Test Suite for MAKER-Council API
  * 
- * Valida que o servidor responde corretamente a qualquer tipo de prompt:
- * - Prompts simples (saudações)
- * - Perguntas diretas
- * - Tarefas de decomposição
+ * Validates that the server responds correctly to any type of prompt:
+ * - Simple prompts (greetings)
+ * - Direct questions
+ * - Decomposition tasks
  * - Code review
- * - Prompts enormes
+ * - Huge prompts
  * 
- * Executar com: npm run test:e2e
+ * Run with: npm run test:e2e
  */
 
 // ============================================================================
-// CONFIGURAÇÃO
+// CONFIGURATION
 // ============================================================================
 
 const API_BASE_URL = process.env.API_URL || 'http://localhost:8338';
 const API_ENDPOINT = `${API_BASE_URL}/v1/chat/completions`;
 const HEALTH_ENDPOINT = `${API_BASE_URL}/health`;
 
-// Timeout padrão para requisições (10 minutos para prompts complexos)
+// Default timeout for requests (10 minutes for complex prompts)
 const DEFAULT_TIMEOUT = 600_000;
 
 // ============================================================================
-// TIPOS
+// TYPES
 // ============================================================================
 
 interface ChatMessage {

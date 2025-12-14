@@ -1,57 +1,57 @@
-# MAKER-Council - Estrutura do Projeto
+# MAKER-Council - Project Structure
 
-## 📁 Estrutura Final (Limpa e Organizada)
+## 📁 Final Structure (Clean and Organized)
 
 ```
 maker-council/
-├── 📄 DOC 2511.09030v1.pdf          # Paper original MAKER
-├── 📄 README.md                      # Guia rápido de uso
-├── 📄 MAKER-SPECIFICATION.md         # Especificação técnica do Council
-├── 📄 MCP-MODEL-API-SPEC.md          # Especificação da API 'query'
-├── 📄 PROJECT-STRUCTURE.md           # Este arquivo
-├── 📄 package.json                   # Dependências Node.js
-├── 📄 package-lock.json              # Lock de dependências
-├── 📄 tsconfig.json                  # Configuração TypeScript
-├── 📄 .gitignore                     # Arquivos ignorados pelo Git
+├── 📄 DOC 2511.09030v1.pdf          # Original MAKER paper
+├── 📄 README.md                      # Quick usage guide
+├── 📄 MAKER-SPECIFICATION.md         # Council technical specification
+├── 📄 MCP-MODEL-API-SPEC.md          # 'query' API specification
+├── 📄 PROJECT-STRUCTURE.md           # This file
+├── 📄 package.json                   # Node.js dependencies
+├── 📄 package-lock.json              # Dependencies lock
+├── 📄 tsconfig.json                  # TypeScript configuration
+├── 📄 .gitignore                     # Git ignored files
 │
-├── 📁 src/                           # Código-fonte TypeScript
-│   ├── 📄 index.ts                   # Implementação MCP principal
-│   ├── 📄 server.ts                  # Servidor HTTP compatível com OpenAI
-│   └── 📄 logic.ts                   # Lógica de processamento do MAKER-Council
+├── 📁 src/                           # TypeScript source code
+│   ├── 📄 index.ts                   # Main MCP implementation
+│   ├── 📄 server.ts                  # OpenAI-compatible HTTP server
+│   └── 📄 logic.ts                   # MAKER-Council processing logic
 │
-├── 📁 tests/                         # Testes automatizados
-│   ├── 📄 query-api.test.ts          # Testes para a nova API 'query'
-│   ├── 📄 coding-benchmark.ts        # Benchmarks de codificação
-│   └── 📄 stress-test.ts             # Testes de carga
+├── 📁 tests/                         # Automated tests
+│   ├── 📄 query-api.test.ts          # Tests for the new 'query' API
+│   ├── 📄 coding-benchmark.ts        # Coding benchmarks
+│   └── 📄 stress-test.ts             # Load tests
 │
-├── 📁 dist/                          # Código compilado (gerado)
-│   ├── 📄 index.js                   # JavaScript compilado
+├── 📁 dist/                          # Compiled code (generated)
+│   ├── 📄 index.js                   # Compiled JavaScript
 │   ├── 📄 index.js.map               # Source map
-│   ├── 📄 index.d.ts                 # Definições TypeScript
-│   └── 📄 index.d.ts.map             # Source map das definições
+│   ├── 📄 index.d.ts                 # TypeScript definitions
+│   └── 📄 index.d.ts.map             # Definitions source map
 │
-├── 📁 .roo/                          # Configuração Roo
-│   └── 📄 mcp.json                   # Configuração do MCP
+├── 📁 .roo/                          # Roo configuration
+│   └── 📄 mcp.json                   # MCP configuration
 │
-└── 📁 node_modules/                  # Dependências instaladas (ignorado)
+└── 📁 node_modules/                  # Installed dependencies (ignored)
 ```
 
-## ✅ Arquivos Removidos (Limpeza)
+## ✅ Removed Files (Cleanup)
 
-### Arquivos Python (Deletados)
-- ❌ `.env` - Variáveis de ambiente Python
-- ❌ `.env.example` - Exemplo de variáveis
-- ❌ `server.py` - Servidor Python antigo
-- ❌ `pyproject.toml` - Configuração Python
-- ❌ `uv.lock` - Lock do UV
-- ❌ `performance_analysis_report.md` - Relatório antigo
+### Python Files (Deleted)
+- ❌ `.env` - Python environment variables
+- ❌ `.env.example` - Variables example
+- ❌ `server.py` - Old Python server
+- ❌ `pyproject.toml` - Python configuration
+- ❌ `uv.lock` - UV lock
+- ❌ `performance_analysis_report.md` - Old report
 
-### Pastas Python (Para deletar manualmente se existirem)
-- ❌ `.venv/` - Ambiente virtual Python
-- ❌ `.ruff_cache/` - Cache do Ruff
-- ❌ `.serena/` - Cache do Serena
+### Python Folders (To delete manually if they exist)
+- ❌ `.venv/` - Python virtual environment
+- ❌ `.ruff_cache/` - Ruff cache
+- ❌ `.serena/` - Serena cache
 
-## 📦 Dependências Instaladas
+## 📦 Installed Dependencies
 
 ```json
 {
@@ -67,71 +67,71 @@ maker-council/
 }
 ```
 
-## 🔧 Comandos Disponíveis
+## 🔧 Available Commands
 
 ```bash
-# Instalar dependências
+# Install dependencies
 npm install
 
-# Compilar TypeScript
+# Compile TypeScript
 npm run build
 
-# Executar em desenvolvimento (modo MCP)
+# Run in development (MCP mode)
 npm run dev
 
-# Executar compilado (modo MCP)
+# Run compiled (MCP mode)
 npm start
-# ou
+# or
 node dist/index.js
 
-# Iniciar servidor API (modo OpenAI-compatible)
+# Start API server (OpenAI-compatible mode)
 npm run serve
-# ou
+# or
 node dist/server.js
 ```
 
-## 📊 Estatísticas do Código
+## 📊 Code Statistics
 
-| Arquivo | Linhas | Descrição |
+| File | Lines | Description |
 |---------|--------|-----------|
-| `src/index.ts` | 685 | Implementação completa do MCP |
-| `src/server.ts` | 254 | Servidor HTTP compatível com OpenAI |
-| `src/logic.ts` | 648 | Lógica de processamento compartilhada |
-| `README.md` | ~200 | Documentação de uso |
-| `MAKER-SPECIFICATION.md` | ~400 | Especificação técnica |
-| **Total** | **~2187** | Código + Documentação |
+| `src/index.ts` | 685 | Complete MCP implementation |
+| `src/server.ts` | 254 | OpenAI-compatible HTTP server |
+| `src/logic.ts` | 648 | Shared processing logic |
+| `README.md` | ~200 | Usage documentation |
+| `MAKER-SPECIFICATION.md` | ~400 | Technical specification |
+| **Total** | **~2187** | Code + Documentation |
 
-## 🎯 Arquivos Essenciais
+## 🎯 Essential Files
 
-### Para Uso
-1. **`dist/index.js`** - Executável do MCP
-2. **`.roo/mcp.json`** - Configuração do servidor
+### For Usage
+1. **`dist/index.js`** - MCP executable
+2. **`.roo/mcp.json`** - Server configuration
 
-### Para Desenvolvimento
-1. **`src/index.ts`** - Código-fonte MCP
-2. **`src/server.ts`** - Código-fonte do servidor API
-3. **`src/logic.ts`** - Lógica compartilhada
-4. **`package.json`** - Dependências
-5. **`tsconfig.json`** - Configuração do compilador
+### For Development
+1. **`src/index.ts`** - MCP source code
+2. **`src/server.ts`** - API server source code
+3. **`src/logic.ts`** - Shared logic
+4. **`package.json`** - Dependencies
+5. **`tsconfig.json`** - Compiler configuration
 
-### Para Documentação
-1. **`README.md`** - Guia rápido
-2. **`MAKER-SPECIFICATION.md`** - Especificação completa
-3. **`DOC 2511.09030v1.pdf`** - Paper original
+### For Documentation
+1. **`README.md`** - Quick guide
+2. **`MAKER-SPECIFICATION.md`** - Complete specification
+3. **`DOC 2511.09030v1.pdf`** - Original paper
 
-## 🚀 Status do Projeto
+## 🚀 Project Status
 
-- ✅ Código limpo e organizado
-- ✅ Todos os arquivos Python removidos
-- ✅ TypeScript compilado e funcionando
-- ✅ Todas as 3 ferramentas testadas e operacionais
-- ✅ Servidor HTTP compatível com OpenAI implementado
-- ✅ Documentação completa
-- ✅ Configurado para GLM via Z.AI
+- ✅ Clean and organized code
+- ✅ All Python files removed
+- ✅ TypeScript compiled and working
+- ✅ All 3 tools tested and operational
+- ✅ OpenAI-compatible HTTP server implemented
+- ✅ Complete documentation
+- ✅ Configured for GLM via Z.AI
 
-## 📝 Notas
+## 📝 Notes
 
-- O diretório `node_modules/` é ignorado pelo Git (definido em `.gitignore`)
-- O diretório `dist/` é gerado automaticamente pelo `npm run build`
-- Não há mais nenhum vestígio de Python no projeto
-- O projeto está pronto para uso e desenvolvimento
+- The `node_modules/` directory is ignored by Git (defined in `.gitignore`)
+- The `dist/` directory is automatically generated by `npm run build`
+- There is no more Python code in the project
+- The project is ready for use and development

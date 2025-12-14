@@ -1,21 +1,21 @@
-# MAKER-Council MCP - Especificação Técnica
+# MAKER-Council MCP - Technical Specification
 
-Baseado no paper **"MAKER: Massively Decomposed Agentic Processes"** (arXiv:2511.09030v1)
+Based on the paper **"MAKER: Massively Decomposed Agentic Processes"** (arXiv:2511.09030v1)
 
-## Visão Geral
+## Overview
 
-O MAKER-Council é uma implementação do paper **"MAKER: Massively Decomposed Agentic Processes"** que oferece duas modalidades de operação:
+MAKER-Council is an implementation of the paper **"MAKER: Massively Decomposed Agentic Processes"** that offers two operating modes:
 
-1. **Modo MCP Server** - Integração com ferramentas baseadas em Model Context Protocol (Roo, Claude Desktop)
-2. **Modo API Server** - Servidor HTTP compatível com OpenAI para integração com ferramentas compatíveis (Roo Code, Cursor, etc.)
+1. **MCP Server Mode** - Integration with Model Context Protocol-based tools (Roo, Claude Desktop)
+2. **API Server Mode** - OpenAI-compatible HTTP server for integration with compatible tools (Roo Code, Cursor, etc.)
 
-O sistema implementa a metodologia MAKER através de:
+The system implements the MAKER methodology through:
 
-1. **MAD** (Maximal Agentic Decomposition) - Decomposição em subtarefas mínimas
-2. **First-to-ahead-by-k Voting** - Sistema de votação com margem k para consenso
-3. **Red-flagging** - Descarte automático de respostas problemáticas
+1. **MAD** (Maximal Agentic Decomposition) - Decomposition into minimal subtasks
+2. **First-to-ahead-by-k Voting** - Voting system with k margin for consensus
+3. **Red-flagging** - Automatic discard of problematic responses
 
-## Arquitetura
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -41,34 +41,34 @@ O sistema implementa a metodologia MAKER através de:
 │  └─────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────┐   │
 │  │  Tool: solve_with_voting                        │   │
-│  │  (Apenas votação, sem juiz)                     │   │
+│  │  (Voting only, no judge)                        │   │
 │  └─────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────┐   │
 │  │  Tool: decompose_task                           │   │
-│  │  (Decomposição MAD)                             │   │
+│  │  (MAD Decomposition)                            │   │
 │  └─────────────────────────────────────────────────┘   │
 └────────────────────┬────────────────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────┐
-│         API OpenAI-compatible (Z.AI GLM)                │
+│         OpenAI-compatible API (Z.AI GLM)                │
 └─────────────────────────────────────────────────────────┘
 ```
 
-## Componentes Principais
+## Main Components
 
-### 1. First-to-ahead-by-k Voting (Algoritmo 2 do paper)
+### 1. First-to-ahead-by-k Voting (Algorithm 2 from the paper)
 
 ```typescript
-// Pseudocódigo
+// Pseudocode
 function firstToAheadByKVoting(prompt, k) {
   votes = new Map()
   
-  // Primeira amostra determinística (temp=0)
+  // First deterministic sample (temp=0)
   sample1 = llm(prompt, temp=0)
   votes[sample1]++
   
-  // Amostras adicionais (temp>0)
+  // Additional samples (temp>0)
   while (!hasWinner(votes, k)) {
     sample = llm(prompt, temp=0.7)
     
@@ -88,53 +88,53 @@ function hasWinner(votes, k) {
 }
 ```
 
-### 2. Red-Flagging (Seção 3.3 do paper)
+### 2. Red-Flagging (Section 3.3 of the paper)
 
-Critérios para descartar respostas:
+Criteria for discarding responses:
 
-1. **Resposta muito longa** (> `MAKER_MAX_TOKENS`)
-   - Indica over-analysis ou confusão do modelo
+1. **Response too long** (> `MAKER_MAX_TOKENS`)
+   - Indicates over-analysis or model confusion
    
-2. **Resposta vazia**
-   - Falha na geração
+2. **Empty response**
+   - Generation failure
 
-3. **Formato incorreto** (futuro)
-   - Indica raciocínio problemático
+3. **Incorrect format** (future)
+   - Indicates problematic reasoning
 
-### 3. Maximal Agentic Decomposition (Seção 3.1 do paper)
+### 3. Maximal Agentic Decomposition (Section 3.1 of the paper)
 
-Cada tarefa é decomposta em passos atômicos onde:
-- Cada passo é uma única ação verificável
-- Pequeno o suficiente para um microagente executar
-- Dependências explícitas entre passos
+Each task is decomposed into atomic steps where:
+- Each step is a single verifiable action
+- Small enough for a microagent to execute
+- Explicit dependencies between steps
 
-## Ferramentas MCP
+## MCP Tools
 
-### `query` (Ponto de Entrada Recomendado)
+### `query` (Recommended Entry Point)
 
-**Descrição**: Ponto de entrada unificado que abstrai a complexidade do MAKER-Council. A ferramenta analisa a requisição e a roteia internamente para o sub-sistema mais apropriado (`consult_council`, `decompose_task`, ou `solve_with_voting`), simplificando a interação para o cliente.
+**Description**: Unified entry point that abstracts MAKER-Council complexity. The tool analyzes the request and routes it internally to the most appropriate subsystem (`consult_council`, `decompose_task`, or `solve_with_voting`), simplifying interaction for the client.
 
-**Parâmetros**:
+**Parameters**:
 
--   `prompt` (string, obrigatório): A consulta principal, pergunta ou tarefa a ser executada.
--   `context` (object, opcional): Fornece contexto adicional (e.g., `code`, `history`, `filePath`).
--   `intent` (string, opcional): Define a intenção explícita para roteamento direto.
-    -   `decision` / `code_review`: Roteia para `consult_council`.
-    -   `decomposition`: Roteia para `decompose_task`.
-    -   `validation`: Roteia para `solve_with_voting`.
--   `config` (object, opcional): Sobrepõe configurações padrão (e.g., `num_voters`, `k`).
+-   `prompt` (string, required): The main query, question, or task to be executed.
+-   `context` (object, optional): Provides additional context (e.g., `code`, `history`, `filePath`).
+-   `intent` (string, optional): Defines explicit intent for direct routing.
+    -   `decision` / `code_review`: Routes to `consult_council`.
+    -   `decomposition`: Routes to `decompose_task`.
+    -   `validation`: Routes to `solve_with_voting`.
+-   `config` (object, optional): Overrides default configuration (e.g., `num_voters`, `k`).
 
-**Lógica de Roteamento**:
+**Routing Logic**:
 
-1.  **`intent` Explícito**: Se o campo `intent` for fornecido, a requisição é roteada diretamente para a ferramenta correspondente.
-2.  **Inferência por `prompt`**: Se o `intent` não for fornecido, a API infere a melhor ferramenta com base em palavras-chave no `prompt` (e.g., "decomponha" -> `decompose_task`).
-3.  **Padrão**: Em caso de ambiguidade, `consult_council` é usado como padrão.
+1.  **Explicit `intent`**: If the `intent` field is provided, the request is routed directly to the corresponding tool.
+2.  **Inference by `prompt`**: If `intent` is not provided, the API infers the best tool based on keywords in the `prompt` (e.g., "decompose" -> `decompose_task`).
+3.  **Default**: In case of ambiguity, `consult_council` is used as the default.
 
-**Exemplo de Uso (Decisão Arquitetural)**:
+**Usage Example (Architectural Decision)**:
 
 ```json
 {
-  "prompt": "Qual a melhor abordagem para implementar autenticação em uma API Node.js/Express: JWT ou sessions?",
+  "prompt": "What is the best approach to implement authentication in a Node.js/Express API: JWT or sessions?",
   "intent": "decision",
   "config": {
     "num_voters": 5
@@ -142,40 +142,40 @@ Cada tarefa é decomposta em passos atômicos onde:
 }
 ```
 
-**Exemplo de Uso (Decomposição de Tarefa)**:
+**Usage Example (Task Decomposition)**:
 
 ```json
 {
-  "prompt": "Decomponha a tarefa: 'Criar um sistema de login de usuário'",
+  "prompt": "Decompose the task: 'Create a user login system'",
   "intent": "decomposition"
 }
 ```
 
 ---
 
-### Ferramentas Internas (Uso Avançado)
+### Internal Tools (Advanced Usage)
 
-As ferramentas abaixo são os componentes principais do `maker-council`. Embora ainda possam ser chamadas diretamente, a abordagem recomendada é usar a ferramenta `query` que gerencia o roteamento automaticamente.
+The tools below are the main components of `maker-council`. While they can still be called directly, the recommended approach is to use the `query` tool which manages routing automatically.
 
 ### `consult_council`
 
-**Descrição**: Consulta completa com votação + julgamento. **Uso direto recomendado apenas para cenários avançados que necessitam bypassar o roteador `query`.**
+**Description**: Full consultation with voting + judgment. **Direct use recommended only for advanced scenarios that need to bypass the `query` router.**
 
-**Parâmetros**:
-- `query` (string, obrigatório): Questão a ser analisada
-- `num_voters` (number, opcional, padrão=3): Número de microagentes
-- `k` (number, opcional, padrão=3): Margem de votação
+**Parameters**:
+- `query` (string, required): Question to be analyzed
+- `num_voters` (number, optional, default=3): Number of microagents
+- `k` (number, optional, default=3): Voting margin
 
-**Processo**:
-1. `num_voters` microagentes geram propostas independentes
-2. Cada microagente usa votação first-to-ahead-by-k
-3. Juiz sênior analisa todas as propostas
-4. Juiz sintetiza a melhor solução ou identifica conflitos
+**Process**:
+1. `num_voters` microagents generate independent proposals
+2. Each microagent uses first-to-ahead-by-k voting
+3. Senior judge analyzes all proposals
+4. Judge synthesizes the best solution or identifies conflicts
 
-**Exemplo de uso**:
+**Usage example**:
 ```json
 {
-  "query": "Escreva uma função para calcular fibonacci",
+  "query": "Write a function to calculate fibonacci",
   "num_voters": 3,
   "k": 3
 }
@@ -183,58 +183,58 @@ As ferramentas abaixo são os componentes principais do `maker-council`. Embora 
 
 ### `solve_with_voting`
 
-**Descrição**: Resolução rápida usando apenas votação (sem juiz). **Uso direto recomendado apenas para cenários avançados que necessitam bypassar o roteador `query`.**
+**Description**: Fast resolution using only voting (no judge). **Direct use recommended only for advanced scenarios that need to bypass the `query` router.**
 
-**Parâmetros**:
-- `query` (string, obrigatório): Questão a ser resolvida
-- `k` (number, opcional, padrão=3): Margem de votação
+**Parameters**:
+- `query` (string, required): Question to be solved
+- `k` (number, optional, default=3): Voting margin
 
-**Processo**:
-1. Amostra múltiplas respostas do modelo
-2. Aplica first-to-ahead-by-k voting
-3. Retorna a resposta vencedora
+**Process**:
+1. Sample multiple responses from the model
+2. Apply first-to-ahead-by-k voting
+3. Return the winning response
 
-**Quando usar**: Questões objetivas com resposta clara (cálculos, fatos, etc.)
+**When to use**: Objective questions with clear answer (calculations, facts, etc.)
 
 ### `decompose_task`
 
-**Descrição**: Decompõe tarefas complexas em passos atômicos (MAD). **Uso direto recomendado apenas para cenários avançados que necessitam bypassar o roteador `query`.**
+**Description**: Decomposes complex tasks into atomic steps (MAD). **Direct use recommended only for advanced scenarios that need to bypass the `query` router.**
 
-**Parâmetros**:
-- `task` (string, obrigatório): Tarefa a ser decomposta
+**Parameters**:
+- `task` (string, required): Task to be decomposed
 
-**Saída**: JSON estruturado com:
+**Output**: Structured JSON with:
 ```json
 {
-  "task": "descrição original",
+  "task": "original description",
   "total_steps": 10,
   "steps": [
     {
       "id": 1,
-      "action": "ação específica",
-      "input": "o que este passo recebe",
-      "output": "o que este passo produz",
+      "action": "specific action",
+      "input": "what this step receives",
+      "output": "what this step produces",
       "dependencies": []
     }
   ]
 }
 ```
 
-## Configuração
+## Configuration
 
-### Variáveis de Ambiente (via MCP)
+### Environment Variables (via MCP)
 
-| Variável | Descrição | Padrão | Exemplo GLM |
-|----------|-----------|--------|-------------|
-| `MAKER_API_KEY` | Chave da API | - | `11afe...` |
-| `MAKER_BASE_URL` | URL base da API | `https://api.openai.com/v1` | `https://api.z.ai/api/coding/paas/v4` |
-| `MAKER_JUDGE_MODEL` | Modelo do juiz | `gpt-4` | `GLM-4.6` |
-| `MAKER_VOTER_MODEL` | Modelo dos voters | `gpt-3.5-turbo` | `GLM-4.5-air` |
-| `MAKER_K` | Margem de votação | `3` | `3` |
-| `MAKER_MAX_TOKENS` | Limite para red-flag | `750` | `750` |
-| `MAKER_MAX_ROUNDS` | Máximo de rounds | `50` | `50` |
+| Variable | Description | Default | GLM Example |
+|----------|-------------|---------|-------------|
+| `MAKER_API_KEY` | API key | - | `11afe...` |
+| `MAKER_BASE_URL` | API base URL | `https://api.openai.com/v1` | `https://api.z.ai/api/coding/paas/v4` |
+| `MAKER_JUDGE_MODEL` | Judge model | `gpt-4` | `GLM-4.6` |
+| `MAKER_VOTER_MODEL` | Voters model | `gpt-3.5-turbo` | `GLM-4.5-air` |
+| `MAKER_K` | Voting margin | `3` | `3` |
+| `MAKER_MAX_TOKENS` | Limit for red-flag | `750` | `750` |
+| `MAKER_MAX_ROUNDS` | Maximum rounds | `50` | `50` |
 
-### Exemplo de Configuração MCP
+### MCP Configuration Example
 
 ```json
 {
@@ -242,9 +242,9 @@ As ferramentas abaixo são os componentes principais do `maker-council`. Embora 
     "maker-council": {
       "command": "node",
       "args": ["dist/index.js"],
-      "cwd": "caminho/para/maker-council",
+      "cwd": "path/to/maker-council",
       "env": {
-        "MAKER_API_KEY": "sua-api-key",
+        "MAKER_API_KEY": "your-api-key",
         "MAKER_BASE_URL": "https://api.z.ai/api/coding/paas/v4",
         "MAKER_JUDGE_MODEL": "GLM-4.6",
         "MAKER_VOTER_MODEL": "GLM-4.5-air",
@@ -256,42 +256,42 @@ As ferramentas abaixo são os componentes principais do `maker-council`. Embora 
 }
 ```
 
-## API Server Modo (OpenAI Compatible)
+## API Server Mode (OpenAI Compatible)
 
-Além do modo MCP, o MAKER-Council pode operar como um servidor HTTP que expõe uma API compatível com OpenAI. Isso permite integração com ferramentas que suportam provedores OpenAI-compatíveis.
+In addition to MCP mode, MAKER-Council can operate as an HTTP server that exposes an OpenAI-compatible API. This allows integration with tools that support OpenAI-compatible providers.
 
 ### Endpoint: `/v1/chat/completions`
 
-**Método**: `POST`
+**Method**: `POST`
 
-#### Corpo da Requisição
+#### Request Body
 
 ```json
 {
-  "model": "string",              // Opcional, ignorado pelo MAKER-Council
-  "messages": [                  // Obrigatório
+  "model": "string",              // Optional, ignored by MAKER-Council
+  "messages": [                  // Required
     {
       "role": "system|user|assistant",
       "content": "string"
     }
   ],
-  "temperature": number,         // Opcional, ignorado pelo MAKER-Council
-  "max_tokens": number,          // Opcional, ignorado pelo MAKER-Council
-  "maker_intent": "decision|code_review|decomposition|validation",  // Opcional
-  "maker_num_voters": number,    // Opcional, 1-10, padrão: 3
-  "maker_k": number              // Opcional, 1-10, padrão: 3
+  "temperature": number,         // Optional, ignored by MAKER-Council
+  "max_tokens": number,          // Optional, ignored by MAKER-Council
+  "maker_intent": "decision|code_review|decomposition|validation",  // Optional
+  "maker_num_voters": number,    // Optional, 1-10, default: 3
+  "maker_k": number              // Optional, 1-10, default: 3
 }
 ```
 
-#### Parâmetros MAKER-Council
+#### MAKER-Council Parameters
 
-| Parâmetro | Tipo | Padrão | Descrição |
-|-----------|------|--------|-----------|
-| `maker_intent` | string | `inferido` | Intent explícito. Se não fornecido, inferido do prompt |
-| `maker_num_voters` | número | 3 | Número de microagentes (usado apenas com `consult_council`) |
-| `maker_k` | número | 3 | Margem de votação first-to-ahead-by-k |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `maker_intent` | string | `inferred` | Explicit intent. If not provided, inferred from prompt |
+| `maker_num_voters` | number | 3 | Number of microagents (used only with `consult_council`) |
+| `maker_k` | number | 3 | First-to-ahead-by-k voting margin |
 
-#### Corpo da Resposta
+#### Response Body
 
 ```json
 {
@@ -304,7 +304,7 @@ Além do modo MCP, o MAKER-Council pode operar como um servidor HTTP que expõe 
       "index": 0,
       "message": {
         "role": "assistant",
-        "content": "Resposta do MAKER-Council..."
+        "content": "MAKER-Council response..."
       },
       "finish_reason": "stop"
     }
@@ -319,9 +319,9 @@ Além do modo MCP, o MAKER-Council pode operar como um servidor HTTP que expõe 
 
 ### Endpoint: `/v1/models`
 
-**Método**: `GET`
+**Method**: `GET`
 
-Retorna um modelo falso para compatibilidade com clientes OpenAI.
+Returns a fake model for compatibility with OpenAI clients.
 
 ```json
 {
@@ -339,9 +339,9 @@ Retorna um modelo falso para compatibilidade com clientes OpenAI.
 
 ### Endpoint: `/health`
 
-**Método**: `GET`
+**Method**: `GET`
 
-Verifica se o servidor está saudável.
+Checks if the server is healthy.
 
 ```json
 {
@@ -351,134 +351,134 @@ Verifica se o servidor está saudável.
 }
 ```
 
-### Processamento Interno
+### Internal Processing
 
-1. **Extração da Mensagem**: A API extrai a última mensagem do usuário do array `messages`.
-2. **Contexto Histórico**: Se houver mensagens anteriores, elas são incluídas como contexto no histórico.
-3. **Roteamento**: Baseado no `maker_intent` ou inferência, a requisição é roteada para:
-   - `consult_council`: Para decisões complexas
-   - `solve_with_voting`: Para validações e questões objetivas
-   - `decompose_task`: Para decomposição de tarefas
-4. **Formatação**: O resultado é formatado como uma resposta de chat completion OpenAI.
+1. **Message Extraction**: The API extracts the last user message from the `messages` array.
+2. **Historical Context**: If there are previous messages, they are included as context in the history.
+3. **Routing**: Based on `maker_intent` or inference, the request is routed to:
+   - `consult_council`: For complex decisions
+   - `solve_with_voting`: For validations and objective questions
+   - `decompose_task`: For task decomposition
+4. **Formatting**: The result is formatted as an OpenAI chat completion response.
 
-### Configuração do Servidor
+### Server Configuration
 
-O servidor é configurado através das mesmas variáveis de ambiente do modo MCP, mais:
+The server is configured through the same environment variables as MCP mode, plus:
 
-| Variável | Padrão | Descrição |
-|----------|--------|-----------|
-| `PORT` | 3000 | Porta onde o servidor HTTP escuta |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | 3000 | Port where the HTTP server listens |
 
-### Exemplo de Uso Completo
+### Complete Usage Example
 
 ```bash
-# Iniciar o servidor
+# Start the server
 npm run serve
 
-# Enviar uma requisição de decisão
+# Send a decision request
 curl -X POST http://localhost:3000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "messages": [
-      {"role": "system", "content": "Você é um arquiteto de software experiente."},
-      {"role": "user", "content": "Qual é a melhor abordagem para autenticação JWT vs Sessions em uma API REST?"}
+      {"role": "system", "content": "You are an experienced software architect."},
+      {"role": "user", "content": "What is the best approach for JWT vs Sessions authentication in a REST API?"}
     ],
     "maker_intent": "decision",
     "maker_num_voters": 5
   }'
 ```
 
-## Compatibilidade com APIs
+## API Compatibility
 
-O MAKER-Council é compatível com qualquer API que siga o protocolo OpenAI:
+MAKER-Council is compatible with any API that follows the OpenAI protocol:
 
 ### Z.AI (GLM)
 ```
 Base URL: https://api.z.ai/api/coding/paas/v4
-Modelos: GLM-4.6, GLM-4.5-air
+Models: GLM-4.6, GLM-4.5-air
 ```
 
 ### OpenRouter
 ```
 Base URL: https://openrouter.ai/api/v1
-Modelos: anthropic/claude-3-sonnet, etc.
+Models: anthropic/claude-3-sonnet, etc.
 ```
 
-### OpenAI Oficial
+### Official OpenAI
 ```
 Base URL: https://api.openai.com/v1
-Modelos: gpt-4, gpt-3.5-turbo
+Models: gpt-4, gpt-3.5-turbo
 ```
 
-## Escalabilidade (do paper)
+## Scalability (from the paper)
 
-### Lei de Custo (Equação 18)
-
-```
-E[custo] = Θ(s × ln(s))
-```
-
-Onde:
-- `s` = número de passos
-- Crescimento **log-linear** (muito eficiente!)
-
-### Probabilidade de Sucesso (Equação 13)
+### Cost Law (Equation 18)
 
 ```
-P[sucesso] = (1 + ((1-p)/p)^k)^(-s)
+E[cost] = Θ(s × ln(s))
 ```
 
-Onde:
-- `p` = taxa de acerto por passo
-- `k` = margem de votação
-- `s` = número de passos
+Where:
+- `s` = number of steps
+- **Log-linear** growth (very efficient!)
 
-**Exemplo**: Com `p=0.995` e `k=3`, é possível resolver tarefas com **1 milhão de passos** com alta probabilidade de sucesso!
+### Success Probability (Equation 13)
 
-## Tratamento Especial GLM-4.6
+```
+P[success] = (1 + ((1-p)/p)^k)^(-s)
+```
 
-O GLM-4.6 retorna respostas em dois campos:
-- `content`: Resposta final
-- `reasoning_content`: Raciocínio intermediário
+Where:
+- `p` = success rate per step
+- `k` = voting margin
+- `s` = number of steps
 
-O MAKER-Council trata ambos automaticamente:
+**Example**: With `p=0.995` and `k=3`, it's possible to solve tasks with **1 million steps** with high probability of success!
+
+## Special GLM-4.6 Handling
+
+GLM-4.6 returns responses in two fields:
+- `content`: Final response
+- `reasoning_content`: Intermediate reasoning
+
+MAKER-Council handles both automatically:
 ```typescript
 const message = response.choices[0].message;
 const text = message.content || message.reasoning_content || "";
 ```
 
-## Métricas de Performance
+## Performance Metrics
 
-Exemplo de relatório de `consult_council`:
+Example `consult_council` report:
 
 ```
-## Métricas de Votação
-- Total de amostras: 31
-- Amostras válidas: 30
+## Voting Metrics
+- Total samples: 31
+- Valid samples: 30
 - Red-flagged: 1 (3.2%)
 
 ## Performance
-- Tempo total: 188.19s
-- Tempo votação: 163.12s
-- Tempo julgamento: 25.07s
+- Total time: 188.19s
+- Voting time: 163.12s
+- Judgment time: 25.07s
 ```
 
-## Referências
+## References
 
-1. **Paper Original**: [MAKER: Massively Decomposed Agentic Processes](https://arxiv.org/abs/2511.09030) (arXiv:2511.09030v1)
+1. **Original Paper**: [MAKER: Massively Decomposed Agentic Processes](https://arxiv.org/abs/2511.09030) (arXiv:2511.09030v1)
 2. **Z.AI Documentation**: https://docs.z.ai/
 3. **Model Context Protocol**: https://modelcontextprotocol.io/
 
-## Limitações Conhecidas
+## Known Limitations
 
-1. **Custo**: Múltiplas chamadas à API aumentam o custo
-2. **Latência**: Votação requer tempo (mitigado com early termination)
-3. **Correlação de erros**: Alguns passos podem ter erro rate anormalmente alto
+1. **Cost**: Multiple API calls increase cost
+2. **Latency**: Voting requires time (mitigated with early termination)
+3. **Error correlation**: Some steps may have abnormally high error rate
 
-## Melhorias Futuras
+## Future Improvements
 
-1. Implementar cache semântico para respostas similares
-2. Adicionar paralelização de voters
-3. Implementar early termination mais agressivo
-4. Suporte para diferentes funções de matching (além de exact match)
-5. Métricas em tempo real via streaming
+1. Implement semantic cache for similar responses
+2. Add voter parallelization
+3. Implement more aggressive early termination
+4. Support for different matching functions (beyond exact match)
+5. Real-time metrics via streaming

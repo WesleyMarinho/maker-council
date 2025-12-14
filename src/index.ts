@@ -2,15 +2,15 @@
 /**
  * MAKER-Council MCP Server
  *
- * Implementação do paper "MAKER: Massively Decomposed Agentic Processes"
+ * Implementation of the paper "MAKER: Massively Decomposed Agentic Processes"
  * (arXiv:2511.09030v1)
  *
  * MAKER = Maximal Agentic decomposition + first-to-ahead-by-K Error correction + Red-flagging
  *
- * Componentes principais:
- * 1. MAD (Maximal Agentic Decomposition) - Decomposição em subtarefas mínimas
- * 2. First-to-ahead-by-k Voting - Sistema de votação com margem k
- * 3. Red-flagging - Descarte de respostas problemáticas
+ * Main components:
+ * 1. MAD (Maximal Agentic Decomposition) - Decomposition into minimal subtasks
+ * 2. First-to-ahead-by-k Voting - Voting system with k margin
+ * 3. Red-flagging - Automatic discard of problematic responses
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -21,7 +21,7 @@ import {
   Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 
-// Importar lógica do MAKER-Council e configuração
+// Import MAKER-Council logic and configuration
 import {
   handleQuery,
   handleConsultCouncil,
@@ -38,43 +38,43 @@ import {
 import { config } from './config.js';
 
 // ============================================================================
-// FERRAMENTAS MCP
+// MCP TOOLS
 // ============================================================================
 
 const tools: Tool[] = [
   {
     name: "query",
-    description: `API unificada do MAKER-Council. Ponto de entrada único que roteia automaticamente
-para a ferramenta apropriada baseado no intent ou análise do prompt.
+    description: `Unified MAKER-Council API. Single entry point that automatically routes
+to the appropriate tool based on intent or prompt analysis.
 
-Esta é a forma RECOMENDADA de interagir com o MAKER-Council.
+This is the RECOMMENDED way to interact with MAKER-Council.
 
-Parâmetros:
-- prompt: A consulta principal (obrigatório)
-- context: Objeto com contexto adicional (code, history, filePath)
-- intent: Intenção explícita ('decision', 'code_review', 'decomposition', 'validation')
-- config: Configuração (num_voters, k)
+Parameters:
+- prompt: The main query (required)
+- context: Object with additional context (code, history, filePath)
+- intent: Explicit intent ('decision', 'code_review', 'decomposition', 'validation')
+- config: Configuration (num_voters, k)
 
-Roteamento:
-- intent='decision' ou 'code_review' → consult_council
+Routing:
+- intent='decision' or 'code_review' → consult_council
 - intent='decomposition' → decompose_task
 - intent='validation' → solve_with_voting
-- Sem intent: infere automaticamente do prompt`,
+- No intent: automatically inferred from prompt`,
     inputSchema: {
       type: "object",
       properties: {
         prompt: {
           type: "string",
-          description: "A consulta principal, pergunta ou tarefa a ser executada"
+          description: "The main query, question, or task to be executed"
         },
         context: {
           type: "object",
-          description: "Contexto adicional (code, history, filePath)",
+          description: "Additional context (code, history, filePath)",
           properties: {
-            code: { type: "string", description: "Trecho de código relevante" },
+            code: { type: "string", description: "Relevant code snippet" },
             history: {
               type: "array",
-              description: "Array de interações passadas",
+              description: "Array of past interactions",
               items: {
                 type: "object",
                 properties: {
@@ -83,20 +83,20 @@ Roteamento:
                 }
               }
             },
-            filePath: { type: "string", description: "Caminho do arquivo sendo analisado" }
+            filePath: { type: "string", description: "Path of the file being analyzed" }
           }
         },
         intent: {
           type: "string",
           enum: ["decision", "code_review", "decomposition", "validation"],
-          description: "Intenção explícita da requisição"
+          description: "Explicit intent of the request"
         },
         config: {
           type: "object",
-          description: "Configuração de execução",
+          description: "Execution configuration",
           properties: {
-            num_voters: { type: "number", description: "Número de microagentes (1-10)" },
-            k: { type: "number", description: "Margem de votação (1-10)" }
+            num_voters: { type: "number", description: "Number of microagents (1-10)" },
+            k: { type: "number", description: "Voting margin (1-10)" }
           }
         }
       },
@@ -105,60 +105,60 @@ Roteamento:
   },
   {
     name: "consult_council",
-    description: `Consulta o MAKER-Council usando o algoritmo completo do paper.
+    description: `Consult MAKER-Council using the complete algorithm from the paper.
 
-Processo:
-1. Múltiplos microagentes (voters) geram propostas usando votação first-to-ahead-by-k
-2. Um juiz sênior analisa as propostas e sintetiza o consenso
-3. Red-flagging descarta respostas problemáticas automaticamente
+Process:
+1. Multiple microagents (voters) generate proposals using first-to-ahead-by-k voting
+2. A senior judge analyzes proposals and synthesizes consensus
+3. Red-flagging automatically discards problematic responses
 
-Parâmetros:
-- query: A questão ou código a ser analisado
-- num_voters: Número de microagentes (padrão: 3)
-- k: Margem de votação first-to-ahead-by-k (padrão: 3)`,
+Parameters:
+- query: The question or code to be analyzed
+- num_voters: Number of microagents (default: 3)
+- k: First-to-ahead-by-k voting margin (default: 3)`,
     inputSchema: {
       type: "object",
       properties: {
-        query: { type: "string", description: "A questão ou código a ser analisado" },
-        num_voters: { type: "number", description: "Número de microagentes (1-10)", default: 3 },
-        k: { type: "number", description: "Margem de votação (1-10)", default: 3 },
+        query: { type: "string", description: "The question or code to be analyzed" },
+        num_voters: { type: "number", description: "Number of microagents (1-10)", default: 3 },
+        k: { type: "number", description: "Voting margin (1-10)", default: 3 },
       },
       required: ["query"],
     },
   },
   {
     name: "solve_with_voting",
-    description: `Resolve uma questão usando APENAS votação first-to-ahead-by-k (sem juiz).
+    description: `Solve a question using ONLY first-to-ahead-by-k voting (no judge).
 
-Útil para questões com resposta objetiva onde o consenso estatístico é suficiente.
-Mais rápido e barato que consult_council.
+Useful for questions with objective answers where statistical consensus is sufficient.
+Faster and cheaper than consult_council.
 
-Parâmetros:
-- query: A questão a ser resolvida
-- k: Margem de votação (padrão: 3)`,
+Parameters:
+- query: The question to be solved
+- k: Voting margin (default: 3)`,
     inputSchema: {
       type: "object",
       properties: {
-        query: { type: "string", description: "A questão a ser resolvida" },
-        k: { type: "number", description: "Margem de votação (1-10)", default: 3 },
+        query: { type: "string", description: "The question to be solved" },
+        k: { type: "number", description: "Voting margin (1-10)", default: 3 },
       },
       required: ["query"],
     },
   },
   {
     name: "decompose_task",
-    description: `Decompõe tarefas complexas em passos atômicos (MAD - Maximal Agentic Decomposition).
+    description: `Decomposes complex tasks into atomic steps (MAD - Maximal Agentic Decomposition).
 
-Segue a metodologia MAKER onde cada passo deve ser:
-- Uma única ação verificável
-- Pequeno o suficiente para um microagente executar sem confusão
-- Com dependências explícitas
+Follows the MAKER methodology where each step must be:
+- A single verifiable action
+- Small enough for a microagent to execute without confusion
+- With explicit dependencies
 
-Retorna JSON com a decomposição estruturada.`,
+Returns JSON with the structured decomposition.`,
     inputSchema: {
       type: "object",
       properties: {
-        task: { type: "string", description: "A tarefa a ser decomposta" },
+        task: { type: "string", description: "The task to be decomposed" },
       },
       required: ["task"],
     },
@@ -166,12 +166,12 @@ Retorna JSON com a decomposição estruturada.`,
 ];
 
 // ============================================================================
-// SERVIDOR MCP
+// MCP SERVER
 // ============================================================================
 
 async function main() {
-  // A configuração é validada e o processo pode sair se MAKER_API_KEY não existir
-  // O objeto 'config' já foi validado ao ser importado de 'config.ts'
+  // Configuration is validated and the process can exit if MAKER_API_KEY doesn't exist
+  // The 'config' object has already been validated when imported from 'config.ts'
 
   const server = new Server(
     {
@@ -185,12 +185,12 @@ async function main() {
     }
   );
 
-  // Handler para listar ferramentas
+  // Handler to list tools
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools,
   }));
 
-  // Handler para executar ferramentas
+  // Handler to execute tools
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
 
@@ -206,7 +206,7 @@ async function main() {
             config: args?.config as QueryConfig | undefined,
           };
           const response = await handleQuery(queryRequest);
-          // Retornar como JSON formatado para a API unificada
+          // Return as formatted JSON for the unified API
           result = JSON.stringify(response, null, 2);
           break;
         }
@@ -233,7 +233,7 @@ async function main() {
           break;
 
         default:
-          throw new Error(`Ferramenta desconhecida: ${name}`);
+          throw new Error(`Unknown tool: ${name}`);
       }
 
       return {
@@ -242,35 +242,35 @@ async function main() {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {
-        content: [{ type: "text", text: `Erro: ${errorMessage}` }],
+        content: [{ type: "text", text: `Error: ${errorMessage}` }],
         isError: true,
       };
     }
   });
 
-  // Iniciar servidor MCP
+  // Start MCP server
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("MAKER-Council MCP Server iniciado");
+  console.error("MAKER-Council MCP Server started");
 }
 
-// Detectar modo de execução baseado em variável de ambiente ou argumento
-// MAKER_MCP_MODE=true força modo MCP (usado pelo cliente MCP)
-// Por padrão, quando executado diretamente (npm run dev), inicia servidor HTTP
+// Detect execution mode based on environment variable or argument
+// MAKER_MCP_MODE=true forces MCP mode (used by MCP client)
+// By default, when executed directly (npm run dev), starts HTTP server
 const isMCPMode = process.env.MAKER_MCP_MODE === 'true' || process.argv.includes('--mcp');
 
 if (isMCPMode) {
-  // Modo MCP: usar stdin/stdout para comunicação com cliente MCP
+  // MCP mode: use stdin/stdout for communication with MCP client
   main().catch(console.error);
 } else {
-  // Modo standalone: iniciar servidor HTTP Express (comportamento padrão para dev)
-  // Usar IIFE assíncrona com await para garantir que o processo aguarde o servidor iniciar
+  // Standalone mode: start Express HTTP server (default behavior for dev)
+  // Use async IIFE with await to ensure process waits for server to start
   (async () => {
     try {
-      // await garante que o script principal espere a execução do módulo do servidor
+      // await ensures the main script waits for server module execution
       await import('./server.js');
     } catch (error) {
-      console.error('Falha ao iniciar o servidor HTTP:', error);
+      console.error('Failed to start HTTP server:', error);
       process.exit(1);
     }
   })();

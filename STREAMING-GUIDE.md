@@ -1,20 +1,20 @@
-# Guia de Streaming - MAKER-Council API
+# Streaming Guide - MAKER-Council API
 
-## 📋 Visão Geral
+## 📋 Overview
 
-O servidor MAKER-Council agora suporta streaming (Server-Sent Events - SSE) no endpoint `/v1/chat/completions`. Isso permite que clientes recebam respostas em tempo real, palavra por palavra, melhorando a experiência do usuário.
+The MAKER-Council server now supports streaming (Server-Sent Events - SSE) on the `/v1/chat/completions` endpoint. This allows clients to receive responses in real-time, word by word, improving user experience.
 
-## 🚀 Como Usar
+## 🚀 How to Use
 
-### 1. Requisição com Streaming
+### 1. Request with Streaming
 
-Para ativar o streaming, inclua `"stream": true` na sua requisição:
+To enable streaming, include `"stream": true` in your request:
 
 ```json
 {
   "model": "maker-council-v1",
   "messages": [
-    { "role": "user", "content": "Explique como funciona o algoritmo de votação MAKER-Council" }
+    { "role": "user", "content": "Explain how the MAKER-Council voting algorithm works" }
   ],
   "stream": true,
   "maker_num_voters": 3,
@@ -22,9 +22,9 @@ Para ativar o streaming, inclua `"stream": true` na sua requisição:
 }
 ```
 
-### 2. Headers da Resposta
+### 2. Response Headers
 
-Quando streaming está ativo, o servidor responde com headers específicos de SSE:
+When streaming is active, the server responds with SSE-specific headers:
 
 ```
 Content-Type: text/event-stream
@@ -33,21 +33,21 @@ Connection: keep-alive
 Access-Control-Allow-Origin: *
 ```
 
-### 3. Formato dos Chunks
+### 3. Chunk Format
 
-Cada chunk é enviado no formato OpenAI:
+Each chunk is sent in OpenAI format:
 
 ```
-data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"maker-council-v1","choices":[{"index":0,"delta":{"content":"palavra1 palavra2 palavra3"},"finish_reason":null}]}
+data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"maker-council-v1","choices":[{"index":0,"delta":{"content":"word1 word2 word3"},"finish_reason":null}]}
 
 data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"maker-council-v1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
 
 data: [DONE]
 ```
 
-## 🧪 Testando com curl
+## 🧪 Testing with curl
 
-### Teste com Streaming
+### Test with Streaming
 
 ```bash
 curl -X POST http://localhost:3000/v1/chat/completions \
@@ -55,13 +55,13 @@ curl -X POST http://localhost:3000/v1/chat/completions \
   -d '{
     "model": "maker-council-v1",
     "messages": [
-      { "role": "user", "content": "Qual a melhor abordagem para autenticação JWT?" }
+      { "role": "user", "content": "What is the best approach for JWT authentication?" }
     ],
     "stream": true
   }' --no-buffer
 ```
 
-### Teste sem Streaming (Resposta Normal)
+### Test without Streaming (Normal Response)
 
 ```bash
 curl -X POST http://localhost:3000/v1/chat/completions \
@@ -69,84 +69,84 @@ curl -X POST http://localhost:3000/v1/chat/completions \
   -d '{
     "model": "maker-council-v1",
     "messages": [
-      { "role": "user", "content": "Qual a melhor abordagem para autenticação JWT?" }
+      { "role": "user", "content": "What is the best approach for JWT authentication?" }
     ],
     "stream": false
   }'
 ```
 
-## 🧪 Testando com o Script de Teste
+## 🧪 Testing with the Test Script
 
-Para executar os testes automatizados:
+To run automated tests:
 
-1. Certifique-se de que o servidor está rodando:
+1. Make sure the server is running:
    ```bash
    npm start
    ```
 
-2. Execute o script de teste:
+2. Run the test script:
    ```bash
    node tests/stream-test.js
    ```
 
-O script irá:
-- Verificar se o servidor está online
-- Testar o modo de streaming
-- Testar o modo normal (não-streaming)
-- Exibir estatísticas e resultados
+The script will:
+- Check if the server is online
+- Test streaming mode
+- Test normal (non-streaming) mode
+- Display statistics and results
 
-## 💡 Implementação Técnica
+## 💡 Technical Implementation
 
-### Como Funciona
+### How It Works
 
-1. **Processamento Interno**: O MAKER-Council ainda processa toda a requisição de forma síncrona (aguarda o consenso completo).
-2. **Simulação de Streaming**: Após obter a resposta final, o servidor a envia em pequenos chunks (palavras) para simular streaming.
-3. **Delay Controlado**: Um pequeno delay (30ms) é adicionado entre chunks para melhorar a percepção de streaming.
+1. **Internal Processing**: MAKER-Council still processes the entire request synchronously (waits for complete consensus).
+2. **Streaming Simulation**: After obtaining the final response, the server sends it in small chunks (words) to simulate streaming.
+3. **Controlled Delay**: A small delay (30ms) is added between chunks to improve the streaming perception.
 
-### Funções Auxiliares
+### Helper Functions
 
-- `sendSSEChunk()`: Envia dados no formato SSE
-- `chunkByWords()`: Quebra o texto em chunks de palavras (padrão: 3 palavras por chunk)
+- `sendSSEChunk()`: Sends data in SSE format
+- `chunkByWords()`: Breaks text into word chunks (default: 3 words per chunk)
 
-## 🔧 Considerações
+## 🔧 Considerations
 
 ### Performance
 
-- O tempo total de processamento é o mesmo (a latência do MAKER-Council não mudou)
-- O streaming apenas melhora a experiência perceptual para o usuário
-- Para respostas muito longas, o delay acumulado pode ser significativo
+- Total processing time is the same (MAKER-Council latency hasn't changed)
+- Streaming only improves perceptual experience for the user
+- For very long responses, accumulated delay can be significant
 
-### Melhorias Futuras
+### Future Improvements
 
-1. **Streaming Real**: Implementar streaming verdadeiro onde os microagentes enviam updates durante o processamento
-2. **Configuração de Velocidade**: Permitir que o cliente configure o tamanho do chunk e o delay
-3. **Streaming de Metadados**: Enviar metadados sobre o progresso da votação
+1. **Real Streaming**: Implement true streaming where microagents send updates during processing
+2. **Speed Configuration**: Allow client to configure chunk size and delay
+3. **Metadata Streaming**: Send metadata about voting progress
 
 ## 🐛 Troubleshooting
 
-### Erro: "Erro de API desconhecido"
+### Error: "Unknown API error"
 
-- Verifique se o cliente está configurado para aceitar `text/event-stream`
-- Alguns clientes precisam do header `Accept: text/event-stream`
+- Check if the client is configured to accept `text/event-stream`
+- Some clients need the `Accept: text/event-stream` header
 
 ### Timeout
 
-- Se o cliente timeout antes do streaming começar, pode ser necessário ajustar os timeouts
-- A latência inicial inclui todo o processamento do MAKER-Council
+- If the client times out before streaming starts, timeouts may need adjustment
+- Initial latency includes all MAKER-Council processing
 
-### Formato Incorreto
+### Incorrect Format
 
-- Certifique-se de que seu cliente processa corretamente o formato `data: {...}\n\n`
-- Lembre-se de tratar o `data: [DONE]\n\n` final
+- Make sure your client properly processes the `data: {...}\n\n` format
+- Remember to handle the final `data: [DONE]\n\n`
 
-## ✅ Exemplo com Node.js
+## ✅ Example with Node.js
 
 ```javascript
 const https = require('https');
 
 const data = JSON.stringify({
   model: 'maker-council-v1',
-  messages: [{ role: 'user', content: 'Como funciona o streaming?' }],
+  messages: [{ role: 'user', content: 'How does streaming work?' }],
   stream: true
 });
 
@@ -167,7 +167,7 @@ const req = https.request(options, (res) => {
     for (const line of lines) {
       if (line.startsWith('data: ')) {
         const data = line.substring(6);
-        if (data === '[DONE]) return;
+        if (data === '[DONE]') return;
         
         const parsed = JSON.parse(data);
         if (parsed.choices[0].delta.content) {
@@ -180,3 +180,4 @@ const req = https.request(options, (res) => {
 
 req.write(data);
 req.end();
+```
