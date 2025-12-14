@@ -379,9 +379,21 @@ app.listen(PORT, () => {
   console.log(`   - Fast Mode: ${config.fastMode}`);
   console.log(`   - Simple Prompt Max Length: ${config.simplePromptMaxLength}`);
   console.log(`   - Include Report: ${config.includeReport}`);
-  if (config.apiUrl.includes(`:${PORT}`)) {
-    console.log('\n⚠️  AVISO: LLM Provider URL contém a mesma porta do servidor!');
-    console.log('   Isso pode causar loop infinito. Verifique MAKER_BASE_URL no .env');
+  // Basic infinite loop prevention
+  // Checks if the API URL points to localhost with the same port as this server
+  try {
+    const url = new URL(config.apiUrl);
+    const isLocalhost = ['localhost', '127.0.0.1', '0.0.0.0', '::1'].includes(url.hostname);
+    const isSamePort = url.port === String(PORT) || (url.port === '' && PORT === 80);
+
+    if (isLocalhost && isSamePort) {
+      console.error('\n❌ CRITICAL ERROR: LLM Provider URL points to this server (localhost loop)!');
+      console.error('   This would cause an infinite loop. Please change MAKER_BASE_URL in your .env file.');
+      console.error('   MAKER_BASE_URL must point to an external provider (e.g. OpenAI, OpenRouter) or a different port.');
+      process.exit(1);
+    }
+  } catch (e) {
+    // Ignore URL parsing errors, let the request fail naturally later
   }
   console.log('\n💡 Para testar com curl:');
   console.log(`curl -X POST http://localhost:${PORT}/v1/chat/completions \\`);
