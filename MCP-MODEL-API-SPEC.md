@@ -1,71 +1,71 @@
-# Especificação da API "MCP Model"
+# "MCP Model" API Specification
 
-**Versão:** 1.0
+**Version:** 1.0
 
-## 1. Visão Geral
+## 1. Overview
 
-A API "MCP Model" serve como um ponto de entrada unificado e uma camada de abstração sobre o `maker-council`. Ela simplifica a interação para agentes consumidores, permitindo que eles submetam uma consulta sem a necessidade de conhecer a ferramenta específica do `maker-council` a ser usada. A API analisa a requisição e roteia internamente para a ferramenta mais apropriada (`consult_council`, `decompose_task`, ou `solve_with_voting`).
+The "MCP Model" API serves as a unified entry point and abstraction layer over `maker-council`. It simplifies interaction for consuming agents, allowing them to submit a query without needing to know the specific `maker-council` tool to use. The API analyzes the request and routes internally to the most appropriate tool (`consult_council`, `decompose_task`, or `solve_with_voting`).
 
 ## 2. Endpoint
 
-A API será exposta através de um único endpoint.
+The API will be exposed through a single endpoint.
 
-- **Método:** `POST`
+- **Method:** `POST`
 - **Endpoint:** `/mcp/model`
 
-## 3. Estrutura da Requisição (Request Body)
+## 3. Request Structure (Request Body)
 
-O corpo da requisição deve ser um objeto JSON com a seguinte estrutura:
+The request body should be a JSON object with the following structure:
 
 ```json
 {
-  "prompt": "string (obrigatório)",
-  "context": "object (opcional)",
-  "intent": "string (opcional)",
-  "config": "object (opcional)"
+  "prompt": "string (required)",
+  "context": "object (optional)",
+  "intent": "string (optional)",
+  "config": "object (optional)"
 }
 ```
 
-### Detalhes dos Campos:
+### Field Details:
 
-- **`prompt`** (string, obrigatório): A consulta principal, pergunta ou tarefa a ser executada. Este é o conteúdo principal que será analisado.
+- **`prompt`** (string, required): The main query, question, or task to be executed. This is the main content that will be analyzed.
 
-- **`context`** (object, opcional): Um objeto que fornece contexto adicional para a consulta. Pode incluir:
-    - `code`: Uma string ou trecho de código relevante.
-    - `history`: Um array de interações passadas.
-    - `filePath`: O caminho do arquivo que está sendo analisado.
-    - Outros metadados relevantes.
+- **`context`** (object, optional): An object that provides additional context for the query. May include:
+    - `code`: A string or relevant code snippet.
+    - `history`: An array of past interactions.
+    - `filePath`: The path of the file being analyzed.
+    - Other relevant metadata.
 
-- **`intent`** (string, opcional): Indica a intenção explícita da requisição. Ajuda a API a rotear diretamente para a ferramenta correta, evitando a necessidade de inferência.
-    - **Valores Permitidos:**
-        - `decision`: Para obter uma decisão ou análise complexa. Mapeia para `consult_council`.
-        - `code_review`: Para obter uma revisão de código. Mapeia para `consult_council`.
-        - `decomposition`: Para quebrar uma tarefa em passos menores. Mapeia para `decompose_task`.
-        - `validation`: Para obter uma resposta rápida e objetiva através de votação. Mapeia para `solve_with_voting`.
+- **`intent`** (string, optional): Indicates the explicit intent of the request. Helps the API route directly to the correct tool, avoiding the need for inference.
+    - **Allowed Values:**
+        - `decision`: To get a decision or complex analysis. Maps to `consult_council`.
+        - `code_review`: To get a code review. Maps to `consult_council`.
+        - `decomposition`: To break a task into smaller steps. Maps to `decompose_task`.
+        - `validation`: To get a quick and objective response through voting. Maps to `solve_with_voting`.
 
-- **`config`** (object, opcional): Permite a passagem de parâmetros de configuração que sobrepõem os padrões do `maker-council`.
-    - `num_voters` (number): Número de microagentes para `consult_council`.
-    - `k` (number): Margem de votação para `consult_council` e `solve_with_voting`.
-    - `model` (string): Para especificar um modelo de LLM para a execução.
+- **`config`** (object, optional): Allows passing configuration parameters that override `maker-council` defaults.
+    - `num_voters` (number): Number of microagents for `consult_council`.
+    - `k` (number): Voting margin for `consult_council` and `solve_with_voting`.
+    - `model` (string): To specify an LLM model for execution.
 
-## 4. Lógica de Roteamento Interno
+## 4. Internal Routing Logic
 
-A API utiliza uma lógica de roteamento em cascata para determinar qual ferramenta do `maker-council` invocar:
+The API uses cascading routing logic to determine which `maker-council` tool to invoke:
 
-1.  **Verificação de `intent` explícito:** Se o campo `intent` for fornecido, o roteamento é direto:
+1.  **Check for explicit `intent`:** If the `intent` field is provided, routing is direct:
     - `intent: 'decision'` -> `consult_council`
     - `intent: 'code_review'` -> `consult_council`
     - `intent: 'decomposition'` -> `decompose_task`
     - `intent: 'validation'` -> `solve_with_voting`
 
-2.  **Inferência por `prompt` (Fallback):** Se `intent` não for fornecido, a API tentará inferir a intenção analisando o `prompt`:
-    - Se o prompt contiver palavras-chave como "decomponha", "divida em passos", "crie um plano para" -> `decompose_task`.
-    - Se o prompt fizer uma pergunta direta que espera uma resposta factual ou uma escolha simples (ex: "Qual a melhor biblioteca para X?", "Usar A ou B?") -> `solve_with_voting`.
-    - Para todos os outros casos, como análises complexas, revisões de código, ou perguntas abertas -> `consult_council` (padrão).
+2.  **Inference by `prompt` (Fallback):** If `intent` is not provided, the API will try to infer the intent by analyzing the `prompt`:
+    - If the prompt contains keywords like "decompose", "divide into steps", "create a plan for" -> `decompose_task`.
+    - If the prompt asks a direct question expecting a factual answer or simple choice (e.g., "What's the best library for X?", "Use A or B?") -> `solve_with_voting`.
+    - For all other cases, such as complex analyses, code reviews, or open questions -> `consult_council` (default).
 
-## 5. Estrutura da Resposta (Response Body)
+## 5. Response Structure (Response Body)
 
-A resposta da API normaliza o output das diferentes ferramentas em uma estrutura JSON consistente.
+The API response normalizes the output of different tools into a consistent JSON structure.
 
 ```json
 {
@@ -82,28 +82,28 @@ A resposta da API normaliza o output das diferentes ferramentas em uma estrutura
 }
 ```
 
-### Detalhes dos Campos:
+### Field Details:
 
-- **`result`** (object | string): O resultado principal da consulta.
-    - Para `decompose_task`, será um objeto JSON com a decomposição.
-    - Para `consult_council` e `solve_with_voting`, será uma string formatada em markdown com a decisão ou resposta.
-- **`metadata`** (object): Contém metadados sobre a execução.
-    - `tool_used` (string): O nome da ferramenta do `maker-council` que foi invocada (`consult_council`, `decompose_task`, `solve_with_voting`).
-    - `request_id` (string): Um identificador único para a requisição.
-    - `timestamp` (string): Data e hora da resposta no formato ISO 8601.
-    - `performance` (object): Métricas de performance, como o tempo total de execução.
-    - `raw_output` (string): O output bruto completo retornado pela ferramenta do `maker-council`, útil para depuração.
+- **`result`** (object | string): The main result of the query.
+    - For `decompose_task`, it will be a JSON object with the decomposition.
+    - For `consult_council` and `solve_with_voting`, it will be a markdown-formatted string with the decision or answer.
+- **`metadata`** (object): Contains metadata about execution.
+    - `tool_used` (string): The name of the `maker-council` tool that was invoked (`consult_council`, `decompose_task`, `solve_with_voting`).
+    - `request_id` (string): A unique identifier for the request.
+    - `timestamp` (string): Date and time of the response in ISO 8601 format.
+    - `performance` (object): Performance metrics, such as total execution time.
+    - `raw_output` (string): The complete raw output returned by the `maker-council` tool, useful for debugging.
 
-## 6. Exemplos de Uso
+## 6. Usage Examples
 
-### Exemplo 1: Decisão Arquitetural (usando `consult_council`)
+### Example 1: Architectural Decision (using `consult_council`)
 
-**Requisição:**
+**Request:**
 ```json
 {
-  "prompt": "Qual a melhor abordagem para implementar autenticação em uma API Node.js/Express: JWT ou sessions?",
+  "prompt": "What is the best approach to implement authentication in a Node.js/Express API: JWT or sessions?",
   "context": {
-    "code": "const app = express(); // ... código base da API"
+    "code": "const app = express(); // ... base API code"
   },
   "intent": "decision",
   "config": {
@@ -112,10 +112,10 @@ A resposta da API normaliza o output das diferentes ferramentas em uma estrutura
 }
 ```
 
-**Resposta Esperada (simplificada):**
+**Expected Response (simplified):**
 ```json
 {
-  "result": "# MAKER-Council Report\n\n## Decisão Final do Juiz\n\nA abordagem recomendada é JWT com refresh tokens...",
+  "result": "# MAKER-Council Report\n\n## Judge's Final Decision\n\nThe recommended approach is JWT with refresh tokens...",
   "metadata": {
     "tool_used": "consult_council",
     "request_id": "uuid-1234-abcd",
@@ -128,28 +128,28 @@ A resposta da API normaliza o output das diferentes ferramentas em uma estrutura
 }
 ```
 
-### Exemplo 2: Decomposição de Tarefa (usando `decompose_task`)
+### Example 2: Task Decomposition (using `decompose_task`)
 
-**Requisição:**
+**Request:**
 ```json
 {
-  "prompt": "Decomponha a tarefa: 'Criar um sistema de login de usuário'",
+  "prompt": "Decompose the task: 'Create a user login system'",
   "intent": "decomposition"
 }
 ```
 
-**Resposta Esperada:**
+**Expected Response:**
 ```json
 {
   "result": {
-    "task": "Criar um sistema de login de usuário",
+    "task": "Create a user login system",
     "total_steps": 5,
     "steps": [
-      { "id": 1, "action": "Criar a UI do formulário de login (email, senha)", "dependencies": [] },
-      { "id": 2, "action": "Criar o endpoint da API POST /login", "dependencies": [] },
-      { "id": 3, "action": "Validar as credenciais do usuário contra o banco de dados", "dependencies": [2] },
-      { "id": 4, "action": "Gerar e retornar um token JWT em caso de sucesso", "dependencies": [3] },
-      { "id": 5, "action": "Retornar um erro 401 em caso de falha", "dependencies": [3] }
+      { "id": 1, "action": "Create login form UI (email, password)", "dependencies": [] },
+      { "id": 2, "action": "Create API endpoint POST /login", "dependencies": [] },
+      { "id": 3, "action": "Validate user credentials against database", "dependencies": [2] },
+      { "id": 4, "action": "Generate and return JWT token on success", "dependencies": [3] },
+      { "id": 5, "action": "Return 401 error on failure", "dependencies": [3] }
     ]
   },
   "metadata": {
@@ -164,19 +164,19 @@ A resposta da API normaliza o output das diferentes ferramentas em uma estrutura
 }
 ```
 
-### Exemplo 3: Validação Rápida (usando `solve_with_voting`, com inferência de intent)
+### Example 3: Quick Validation (using `solve_with_voting`, with intent inference)
 
-**Requisição:**
+**Request:**
 ```json
 {
-  "prompt": "Para manipulação de datas em JS, é melhor usar 'moment.js' ou 'date-fns' em um novo projeto em 2025?"
+  "prompt": "For date manipulation in JS, is it better to use 'moment.js' or 'date-fns' in a new project in 2025?"
 }
 ```
 
-**Resposta Esperada (simplificada):**
+**Expected Response (simplified):**
 ```json
 {
-  "result": "# Resultado da Votação First-to-ahead-by-3\n\n## Resposta Vencedora\n\n'date-fns', por ser mais moderna, modular e imutável.",
+  "result": "# First-to-ahead-by-3 Voting Result\n\n## Winning Answer\n\n'date-fns', for being more modern, modular and immutable.",
   "metadata": {
     "tool_used": "solve_with_voting",
     "request_id": "uuid-9012-ijkl",
