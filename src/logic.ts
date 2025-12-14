@@ -201,7 +201,7 @@ export async function firstToAheadByKVoting(
     elapsedTime: 0,
   };
 
-  // Primeira amostra determinística (temperature=0)
+  // First deterministic sample (temperature=0)
   try {
     const { text, tokens } = await createMessage(
       model,
@@ -231,7 +231,7 @@ export async function firstToAheadByKVoting(
     state.redFlagged++;
   }
 
-  // Votação iterativa
+  // Iterative voting
   for (let round = 1; round < config.maxRounds; round++) {
     try {
       const { text, tokens } = await createMessage(
@@ -294,87 +294,87 @@ export function checkWinner(votes: Map<string, number>, candidate: string, k: nu
 // PROMPTS DO SISTEMA
 // ============================================================================
 
-export const VOTER_SYSTEM_PROMPT = `Você é um microagente especializado focado em precisão técnica.
-Sua tarefa é analisar a questão e fornecer UMA solução clara e concisa.
+export const VOTER_SYSTEM_PROMPT = `You are a specialized microagent focused on technical precision.
+Your task is to analyze the question and provide ONE clear and concise solution.
 
-REGRAS:
-1. Seja direto e técnico
-2. Forneça apenas a solução, sem explicações longas
-3. Se for código, forneça código funcional e completo
-4. Não repita a pergunta nem faça preâmbulos
+RULES:
+1. Be direct and technical
+2. Provide only the solution, without long explanations
+3. If it's code, provide functional and complete code
+4. Don't repeat the question or make preambles
 
-Responda de forma estruturada e objetiva.`;
+Respond in a structured and objective manner.`;
 
-export const JUDGE_SYSTEM_PROMPT = `Você é o Juiz Sênior do MAKER-Council.
-Sua função é analisar múltiplas propostas de microagentes e sintetizar a melhor solução.
+export const JUDGE_SYSTEM_PROMPT = `You are the Senior Judge of the MAKER-Council.
+Your role is to analyze multiple microagent proposals and synthesize the best solution.
 
-PROCESSO DE JULGAMENTO:
-1. CONSENSO: Se as propostas concordam, sintetize a melhor versão combinando pontos fortes
-2. DIVERGÊNCIA MENOR: Escolha a abordagem mais robusta e justifique brevemente
-3. DIVERGÊNCIA PERIGOSA: Se propostas são contraditórias de forma que pode causar bugs ou 
-   problemas de segurança, retorne exatamente "RED FLAG:" seguido da explicação do conflito
+JUDGMENT PROCESS:
+1. CONSENSUS: If proposals agree, synthesize the best version combining strengths
+2. MINOR DIVERGENCE: Choose the most robust approach and briefly justify
+3. DANGEROUS DIVERGENCE: If proposals are contradictory in a way that may cause bugs or
+   security issues, return exactly "RED FLAG:" followed by the conflict explanation
 
-FORMATO DA RESPOSTA:
-- Comece com "## Análise" resumindo as propostas
-- Depois "## Decisão" com a solução final
-- Se código, forneça código completo e funcional`;
+RESPONSE FORMAT:
+- Start with "## Analysis" summarizing the proposals
+- Then "## Decision" with the final solution
+- If code, provide complete and functional code`;
 
-export const DECOMPOSER_SYSTEM_PROMPT = `Você é um especialista em decomposição de tarefas seguindo a metodologia MAKER.
-Sua função é quebrar tarefas complexas em passos ATÔMICOS e ACIONÁVEIS.
+export const DECOMPOSER_SYSTEM_PROMPT = `You are an expert in task decomposition following the MAKER methodology.
+Your role is to break complex tasks into ATOMIC and ACTIONABLE steps.
 
-PRINCÍPIOS DA DECOMPOSIÇÃO MAKER:
-1. Cada passo deve ser uma ÚNICA ação verificável
-2. Passos devem ser pequenos o suficiente para um microagente executar sem confusão
-3. Dependências entre passos devem ser explícitas
-4. Evite passos vagos - seja específico sobre O QUE fazer
+MAKER DECOMPOSITION PRINCIPLES:
+1. Each step must be a SINGLE verifiable action
+2. Steps must be small enough for a microagent to execute without confusion
+3. Dependencies between steps must be explicit
+4. Avoid vague steps - be specific about WHAT to do
 
-FORMATO DE SAÍDA (JSON):
+OUTPUT FORMAT (JSON):
 {
-    "task": "descrição original",
-    "total_steps": número,
+    "task": "original description",
+    "total_steps": number,
     "steps": [
         {
             "id": 1,
-            "action": "ação específica",
-            "input": "o que este passo recebe",
-            "output": "o que este passo produz",
+            "action": "specific action",
+            "input": "what this step receives",
+            "output": "what this step produces",
             "dependencies": []
         }
     ]
 }`;
 
 // ============================================================================
-// DETECÇÃO DE PROMPTS SIMPLES (MODO RÁPIDO)
+// SIMPLE PROMPT DETECTION (FAST MODE)
 // ============================================================================
 
 /**
- * Lista de padrões de saudações e prompts simples que não precisam de votação
+ * List of greeting patterns and simple prompts that don't need voting
  */
 const SIMPLE_PROMPT_PATTERNS = [
-  // Saudações em português
+  // Greetings in Portuguese
   /^(oi|olá|ola|hey|eai|e aí|fala|salve|bom dia|boa tarde|boa noite|tudo bem|como vai|opa)[\s!?.]*$/i,
-  // Saudações em inglês
+  // Greetings in English
   /^(hi|hello|hey|yo|sup|what's up|good morning|good afternoon|good evening|how are you)[\s!?.]*$/i,
-  // Agradecimentos
+  // Thanks
   /^(obrigado|obrigada|valeu|thanks|thank you|thx)[\s!?.]*$/i,
-  // Despedidas
+  // Farewells
   /^(tchau|adeus|bye|goodbye|até mais|ate mais|flw|falou)[\s!?.]*$/i,
-  // Confirmações simples
+  // Simple confirmations
   /^(ok|okay|sim|não|yes|no|certo|entendi|beleza)[\s!?.]*$/i,
 ];
 
 /**
- * Remove tags XML e outros wrappers do prompt para obter o texto limpo.
- * Isso é necessário porque alguns clientes enviam prompts como <task>texto</task>
+ * Removes XML tags and other wrappers from the prompt to get clean text.
+ * This is necessary because some clients send prompts as <task>text</task>
  */
 export function cleanPrompt(prompt: string): string {
   let cleaned = prompt.trim();
   
-  // Remove o bloco <environment_details>...</environment_details> completamente
-  // Usa flag 's' (dotAll) para que '.' capture também quebras de linha
+  // Remove the <environment_details>...</environment_details> block completely
+  // Uses 's' flag (dotAll) so '.' also captures line breaks
   cleaned = cleaned.replace(/<environment_details>[\s\S]*?<\/environment_details>/gi, '');
   
-  // Remove tags XML comuns
+  // Remove common XML tags
   cleaned = cleaned.replace(/<task>\s*/gi, '');
   cleaned = cleaned.replace(/\s*<\/task>/gi, '');
   cleaned = cleaned.replace(/<prompt>\s*/gi, '');
@@ -384,18 +384,18 @@ export function cleanPrompt(prompt: string): string {
   cleaned = cleaned.replace(/<message>\s*/gi, '');
   cleaned = cleaned.replace(/\s*<\/message>/gi, '');
   
-  // Remove quaisquer outras tags XML genéricas (mas preserva conteúdo)
+  // Remove any other generic XML tags (but preserve content)
   cleaned = cleaned.replace(/<[^>]+>/g, '');
   
   return cleaned.trim();
 }
 
 /**
- * Verifica se um prompt é "simples" (saudação, pergunta curta, etc.)
- * e pode ser respondido diretamente sem votação.
+ * Checks if a prompt is "simple" (greeting, short question, etc.)
+ * and can be answered directly without voting.
  */
 export function isSimplePrompt(prompt: string): boolean {
-  // Primeiro limpa o prompt de tags XML
+  // First clean the prompt of XML tags
   const cleanedPrompt = cleanPrompt(prompt).toLowerCase();
   
   console.error(`[FAST MODE CHECK] Original prompt: "${prompt}"`);
@@ -403,13 +403,13 @@ export function isSimplePrompt(prompt: string): boolean {
   console.error(`[FAST MODE CHECK] Cleaned length: ${cleanedPrompt.length}`);
   console.error(`[FAST MODE CHECK] Max length config: ${config.simplePromptMaxLength}`);
   
-  // Verifica se está abaixo do limite de caracteres
+  // Check if it's below the character limit
   if (cleanedPrompt.length > config.simplePromptMaxLength) {
     console.error(`[FAST MODE CHECK] Result: FALSE (too long)`);
     return false;
   }
   
-  // Verifica se corresponde a algum padrão de prompt simples
+  // Check if it matches any simple prompt pattern
   for (const pattern of SIMPLE_PROMPT_PATTERNS) {
     if (pattern.test(cleanedPrompt)) {
       console.error(`[FAST MODE CHECK] Result: TRUE (matched pattern: ${pattern})`);
@@ -417,7 +417,7 @@ export function isSimplePrompt(prompt: string): boolean {
     }
   }
   
-  // Prompts muito curtos (menos de 20 chars) sem código são considerados simples
+  // Very short prompts (less than 20 chars) without code are considered simple
   if (cleanedPrompt.length < 20 && !cleanedPrompt.includes('```') && !cleanedPrompt.includes('function')) {
     console.error(`[FAST MODE CHECK] Result: TRUE (short prompt < 20 chars)`);
     return true;
@@ -428,14 +428,14 @@ export function isSimplePrompt(prompt: string): boolean {
 }
 
 /**
- * Responde diretamente a prompts simples sem usar votação.
- * Faz apenas uma chamada ao modelo judge.
+ * Responds directly to simple prompts without using voting.
+ * Makes just one call to the judge model.
  */
 export async function handleFastMode(prompt: string): Promise<string> {
-  const systemPrompt = `Você é um assistente amigável e conciso.
-Responda de forma natural e direta, sem formatação excessiva.
-Para saudações, responda de forma breve e acolhedora.
-Para perguntas simples, dê respostas diretas e objetivas.`;
+  const systemPrompt = `You are a friendly and concise assistant.
+Respond naturally and directly, without excessive formatting.
+For greetings, respond briefly and warmly.
+For simple questions, give direct and objective answers.`;
 
   try {
     const { text } = await createMessage(
@@ -443,11 +443,11 @@ Para perguntas simples, dê respostas diretas e objetivas.`;
       systemPrompt,
       prompt,
       0.7,
-      256  // Tokens baixos para respostas rápidas
+      256  // Low tokens for quick responses
     );
     return text;
   } catch (error) {
-    return `Olá! Como posso ajudar?`;
+    return `Hello! How can I help?`;
   }
 }
 
@@ -460,7 +460,7 @@ Para perguntas simples, dê respostas diretas e objetivas.`;
  */
 export function extractCleanResponse(rawResult: string): string {
   // Se não é um relatório MAKER, retorna como está
-  if (!rawResult.includes('# MAKER-Council Report') && !rawResult.includes('# Resultado da Votação')) {
+  if (!rawResult.includes('# MAKER-Council Report') && !rawResult.includes('# First-to-ahead-by-')) {
     return rawResult;
   }
   
@@ -750,7 +750,7 @@ export async function handleConsultCouncil(
   const totalValid = proposals.reduce((sum, p) => sum + p.state.validSamples, 0);
   const totalFlagged = proposals.reduce((sum, p) => sum + p.state.redFlagged, 0);
 
-  return `# MAKER-Council Report\n\n## Configuração\n- Voters: ${numVoters}\n- Margem k (first-to-ahead-by-k): ${k}\n- Modelo Voters: ${config.voterModel}\n- Modelo Juiz: ${config.judgeModel}\n\n## Métricas de Votação\n- Total de amostras: ${totalSamples}\n- Amostras válidas: ${totalValid}\n- Red-flagged (descartadas): ${totalFlagged}\n- Taxa de red-flag: ${totalSamples > 0 ? ((totalFlagged / totalSamples) * 100).toFixed(1) : 0}%\n\n## Performance\n- Tempo total: ${totalTime.toFixed(2)}s\n- Tempo votação: ${votingTime.toFixed(2)}s\n- Tempo julgamento: ${judgeTime.toFixed(2)}s\n\n## Propostas Recebidas\n${validProposals.map(p => `- Voter ${p.voterId}: ${p.proposal.length} chars, ${p.state.validSamples} votos, ${p.state.elapsedTime.toFixed(2)}s`).join("\n")}\n\n## Decisão Final do Juiz\n\n${judgeResponse}`;
+  return `# MAKER-Council Report\n\n## Configuration\n- Voters: ${numVoters}\n- Margin k (first-to-ahead-by-k): ${k}\n- Voters Model: ${config.voterModel}\n- Judge Model: ${config.judgeModel}\n\n## Voting Metrics\n- Total samples: ${totalSamples}\n- Valid samples: ${totalValid}\n- Red-flagged (discarded): ${totalFlagged}\n- Red-flag rate: ${totalSamples > 0 ? ((totalFlagged / totalSamples) * 100).toFixed(1) : 0}%\n\n## Performance\n- Total time: ${totalTime.toFixed(2)}s\n- Voting time: ${votingTime.toFixed(2)}s\n- Judgment time: ${judgeTime.toFixed(2)}s\n\n## Received Proposals\n${validProposals.map(p => `- Voter ${p.voterId}: ${p.proposal.length} chars, ${p.state.validSamples} votes, ${p.state.elapsedTime.toFixed(2)}s`).join("\n")}\n\n## Judge's Final Decision\n\n${judgeResponse}`;
 }
 
 export async function handleSolveWithVoting(
