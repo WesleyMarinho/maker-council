@@ -1,31 +1,3 @@
 {
-  "mcpServers": [
-    {
-      "name": "serena",
-      "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/oraios/serena",
-        "serena",
-        "start-mcp-server",
-        "--context",
-        "claude-code",
-        "--project",
-        "."
-      ],
-      "enabled": true,
-      "provider": "github"
-    },
-    {
-      "name": "filesystem-access",
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "./"
-      ],
-      "enabled": true,
-      "provider": "local"
-    }
-  ]
+  "mcpServers": []
 }

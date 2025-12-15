@@ -452,6 +452,20 @@ function isSimpleGreeting(prompt: string): boolean {
   return greetings.includes(normalizedPrompt);
 }
 
+function isMcpMetaQuestion(prompt: string): boolean {
+  const normalized = prompt.toLowerCase();
+  const mcpKeywords = ['mcp', 'integra', 'ferramenta', 'tool', 'servidor', 'server'];
+  const metaKeywords = ['como funciona', 'how does', 'de onde', 'where', 'what is', 'como', 'funciona', 'obtemos', 'disponiveis'];
+
+  const hasMcpKeyword = mcpKeywords.some(keyword => normalized.includes(keyword));
+  const hasMetaKeyword = metaKeywords.some(keyword => normalized.includes(keyword));
+
+  const result = hasMcpKeyword && hasMetaKeyword;
+  console.log(`[LOGIC] isMcpMetaQuestion: mcp=${hasMcpKeyword}, meta=${hasMetaKeyword}, result=${result}`);
+
+  return result;
+}
+
 export function buildFullPrompt(prompt: string, context?: QueryContext): string {
   if (!context) {
     return prompt;
@@ -519,98 +533,221 @@ export async function handleQuery(request: QueryRequest): Promise<QueryResponse>
     };
   }
 
-  console.log('[LOGIC] New handleQuery received request:', request.prompt);
-  console.log(`[LOGIC] ${availableTools.length} tools are available for routing.`);
-
-  const messages: ChatCompletionMessageParam[] = [
-    {
-      role: 'system',
-      content: `You are a high-level orchestration agent. Your goal is to route the user's request to the appropriate tool.
-      
-      TOOLS AVAILABLE:
-      ${availableTools.map(t => `- ${t.function.name}: ${(t.function.description || '').split('\n')[0]}`).join('\n')}
-      
-      INSTRUCTIONS:
-      1. Analyze the user's prompt and intent.
-      2. Select the MOST specific tool for the job.
-      3. If the user wants to solve a problem with consensus, use 'consult_council' or 'solve_with_voting'.
-      4. If the user wants to break down a big task, use 'decompose_task'.
-      5. If the request implies using an external tool (MCP), select that tool.
-      6. Respond ONLY with the tool call. Do not provide explanations.`
-    },
-    {
-      role: 'user',
-      content: request.prompt // In the future, we can add context here (buildFullPrompt)
-    }
-  ];
-
-  const client = getClient(); // Assumes getClient() returns an OpenAI-compatible client
-  const response = await client.chat.completions.create({
-    model: config.judgeModel,
-    messages,
-    tools: availableTools,
-    tool_choice: 'auto',
-  });
-
-  const toolCall = response.choices[0].message.tool_calls?.[0];
-
-  if (!toolCall) {
-    console.warn('[LOGIC] LLM did not select a tool. Falling back to default behavior.');
-    // Fallback: use 'solve_with_voting' as the default behavior
-    const fallbackResult = await executeInternalTool('solve_with_voting', { query: request.prompt });
+  // Fast path for MCP meta questions
+  if (isMcpMetaQuestion(request.prompt)) {
+    console.log('[LOGIC] MCP meta question detected. Providing direct answer.');
     const totalTime = (Date.now() - startTime) / 1000;
+    const mcpAnswer = `A integração MCP (Model Context Protocol) do MAKER-Council funciona da seguinte forma:
+
+**Fonte dos Servidores MCP:**
+- Os servidores MCP são configurados no arquivo \`maker-mcps/mcp.json\`
+- Este arquivo contém uma lista de servidores, cada um com comando, argumentos e configurações
+
+**Como Funciona:**
+1. No startup, o sistema lê o arquivo \`mcp.json\`
+2. Para cada servidor habilitado, inicia um processo child com o comando especificado
+3. Conecta via stdio (stdin/stdout) usando o protocolo MCP
+4. Descobre as ferramentas disponíveis em cada servidor
+5. Integra essas ferramentas com as ferramentas internas (consult_council, solve_with_voting, decompose_task)
+
+**Servidores Configurados Atualmente:**
+- **serena**: Ferramentas de busca e análise de código (requer Git)
+- **filesystem-access**: Ferramentas de leitura/escrita de arquivos (${availableTools.filter(t => t.function.name.includes('filesystem')).length} ferramentas)
+
+**Total de Ferramentas Disponíveis:** ${availableTools.length}
+
+Para adicionar mais servidores MCP, edite o arquivo \`maker-mcps/mcp.json\`.`;
+
     return {
-      result: fallbackResult,
+      result: mcpAnswer,
       metadata: {
-        tool_used: 'solve_with_voting',
+        tool_used: 'direct_answer',
         request_id: requestId,
         timestamp: new Date().toISOString(),
         performance: {
           total_time_seconds: totalTime,
         },
-        raw_output: typeof fallbackResult === 'string' ? fallbackResult : JSON.stringify(fallbackResult),
+        raw_output: "MCP meta question answered directly.",
       }
     };
   }
 
-  const toolName = toolCall.function.name;
-  let args = JSON.parse(toolCall.function.arguments);
-  console.log(`[LOGIC] LLM selected tool: ${toolName} with args:`, args);
+  console.log('[LOGIC] New handleQuery received request:', request.prompt);
+  console.log(`[LOGIC] ${availableTools.length} tools are available for routing.`);
 
-  // Quick fix for argument name mismatch
-  if (toolName.includes('get_symbols_overview') && args.file_path && !args.relative_path) {
-    console.log('[LOGIC] Applying argument correction: file_path -> relative_path');
-    args.relative_path = args.file_path;
-    delete args.file_path;
-  }
+  // --- RE-ACT AGENT LOOP ---
+  // Determine if we have external MCP tools available
+  const hasExternalTools = availableTools.some(t => !internalTools.some(it => it.function.name === t.function.name));
+  const toolsDescription = hasExternalTools
+    ? 'Internal MAKER-Council tools AND external MCP tools are available.'
+    : 'ONLY internal MAKER-Council tools are available. No external MCP servers are connected.';
 
-  // Fix for search_for_pattern argument mismatch (pattern -> substring_pattern)
-  if (toolName.includes('search_for_pattern') && args.pattern && !args.substring_pattern) {
-    console.log('[LOGIC] Applying argument correction: pattern -> substring_pattern');
-    args.substring_pattern = args.pattern;
-    delete args.pattern;
-  }
+  const messages: ChatCompletionMessageParam[] = [
+    {
+      role: 'system',
+      content: `You are a high-level orchestration agent (MAKER-Council).
+      
+      GOAL: Resolve the user's request efficiently using available tools.
 
-  let executionResult: any;
+      TOOL AVAILABILITY: ${toolsDescription}
 
-  if (internalTools.some(t => t.function.name === toolName)) {
-    executionResult = await executeInternalTool(toolName, args);
-  } else {
-    const mcpManager = getMcpToolManager();
-    if (!mcpManager) {
-      throw new Error("MCP Tool Manager not initialized.");
+      TOOLS AVAILABLE (use ONLY these):
+      ${availableTools.map(t => `- ${t.function.name}: ${(t.function.description || '').split('\n')[0]}`).join('\n')}
+      
+      IMPORTANT - When to Answer Directly:
+      1. **Meta Questions**: If the user asks about how THIS system works (MCP integration, configuration, architecture), answer directly based on what you know. DO NOT call external tools.
+      2. **General Knowledge**: For factual questions you can answer, respond directly.
+      3. **After Tool Execution**: Once you have the information from a tool, formulate the final answer yourself.
+      4. **No Suitable Tool**: If none of the available tools are suitable for the task, answer directly with your best knowledge.
+      
+      When to Call Tools (ONLY if the tool is listed above):
+      1. **Code Analysis/Review**: Use "consult_council" for complex decisions or code review.
+      2. **Complex Reasoning**: Use "solve_with_voting" for validation or consensus.
+      3. **Task Planning**: Use "decompose_task" for breaking down complex tasks.
+      
+      Error Handling:
+      - If a tool returns an error or unexpected message (like "onboarding required"), DO NOT pass it to the user.
+      - Instead, try a different approach or answer directly if possible.
+      - NEVER call a tool that is not in the TOOLS AVAILABLE list above.
+      
+      CRITICAL:
+      - Do not loop infinitely. If a tool fails repeatedly, stop and inform the user.
+      - For questions about MCP servers, configuration files, or system architecture, answer directly.
+      - If no external MCP tools are available, DO NOT attempt to call tools like "onboarding", "filesystem", "serena", etc.`
+    },
+    {
+      role: 'user',
+      content: buildFullPrompt(request.prompt, request.context)
     }
-    const mcpResult = await mcpManager.executeTool({ toolName, arguments: args });
-    executionResult = mcpResult.success ? mcpResult.content : `Error executing MCP tool: ${mcpResult.error}`;
+  ];
+
+  const maxIterations = config.mcpClient.maxAgentIterations || 10;
+  let iterations = 0;
+  let finalResult: any = null;
+  let lastToolUsed = 'orchestrator';
+
+  while (iterations < maxIterations) {
+    iterations++;
+    console.log(`[LOGIC] Agent Loop Iteration ${iterations}/${maxIterations}`);
+
+    const client = getClient();
+    const response = await client.chat.completions.create({
+      model: config.judgeModel,
+      messages,
+      tools: availableTools,
+      tool_choice: 'auto',
+    });
+
+    const choice = response.choices[0];
+    const message = choice.message;
+    const toolCall = message.tool_calls?.[0];
+
+    // If the model replies with text (no tool call), we treat it as the final answer
+    if (!toolCall) {
+      console.log('[LOGIC] Agent returned final text response.');
+      finalResult = message.content;
+      break;
+    }
+
+    // Add the assistant's thought/tool-call to history
+    messages.push(message);
+
+    const toolName = toolCall.function.name;
+    lastToolUsed = toolName;
+    let args: any = {};
+    try {
+      args = JSON.parse(toolCall.function.arguments);
+    } catch (e) {
+      console.error('[LOGIC] Failed to parse tool arguments:', e);
+      messages.push({
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        content: `Error: Invalid JSON arguments. Please retry with valid JSON.`
+      });
+      continue;
+    }
+
+    console.log(`[LOGIC] Agent calls tool: ${toolName}`, args);
+
+    // Arg Fixes
+    if (toolName.includes('get_symbols_overview') && args.file_path && !args.relative_path) {
+      args.relative_path = args.file_path;
+      delete args.file_path;
+    }
+    if (toolName.includes('search_for_pattern') && args.pattern && !args.substring_pattern) {
+      args.substring_pattern = args.pattern;
+      delete args.pattern;
+    }
+
+    // Execute Tool
+    let toolOutput: string;
+    try {
+      if (internalTools.some(t => t.function.name === toolName)) {
+        const result = await executeInternalTool(toolName, args);
+        // Internal tools return string directly (usually markup report)
+        toolOutput = typeof result === 'string' ? result : JSON.stringify(result);
+      } else {
+        const mcpManager = getMcpToolManager();
+        if (!mcpManager) {
+          // MCP tools are not available - guide the agent to use internal tools or answer directly
+          toolOutput = `Error: Tool "${toolName}" is an external MCP tool, but no MCP servers are connected. ` +
+            `Please use only the internal MAKER-Council tools (consult_council, solve_with_voting, decompose_task) ` +
+            `or answer the user's question directly if possible.`;
+        } else {
+          const mcpResult = await mcpManager.executeTool({ toolName, arguments: args });
+          if (mcpResult.success) {
+            // Start of Content Handling Update
+            if (Array.isArray(mcpResult.content)) {
+              toolOutput = mcpResult.content
+                .map(item => {
+                  if (item.type === 'text') return item.text;
+                  if (item.type === 'image') return `[Image: ${item.mimeType}]`; // Placeholder for images
+                  if (item.type === 'resource') return `[Resource: ${item.resource.uri}]`; // Placeholder for resources
+                  return JSON.stringify(item);
+                })
+                .join('\n');
+            } else {
+              // Fallback for unexpected content structure
+              toolOutput = typeof mcpResult.content === 'string'
+                ? mcpResult.content
+                : JSON.stringify(mcpResult.content);
+            }
+            // End of Content Handling Update
+
+          } else {
+            toolOutput = `Error executing tool: ${mcpResult.error}`;
+          }
+        }
+      }
+    } catch (error) {
+      toolOutput = `Error execution exception: ${String(error)}`;
+    }
+
+    console.log(`[LOGIC] Tool output length: ${toolOutput.length}`);
+
+    // Add tool output to history so agent can see it
+    messages.push({
+      role: 'tool',
+      tool_call_id: toolCall.id,
+      content: toolOutput
+    });
   }
 
-  const raw_output_for_metadata = typeof executionResult === 'string' ? executionResult : JSON.stringify(executionResult);
+  if (!finalResult) {
+    if (iterations >= maxIterations) {
+      finalResult = "Error: Agent reached maximum iteration limit without a final answer.";
+    } else {
+      finalResult = "Error: Agent stopped without an answer."; // Should not happen given logic above
+    }
+  }
+
   const totalTime = (Date.now() - startTime) / 1000;
+  const raw_output_for_metadata = typeof finalResult === 'string' ? finalResult : JSON.stringify(finalResult);
 
   return {
-    result: executionResult,
+    result: finalResult,
     metadata: {
-      tool_used: toolName,
+      tool_used: lastToolUsed,
       request_id: requestId,
       timestamp: new Date().toISOString(),
       performance: {
