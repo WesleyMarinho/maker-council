@@ -172,18 +172,27 @@ You can control MAKER-Council behavior by passing additional parameters in the r
 
 ### Streaming Support
 
-The server supports Server-Sent Events (SSE) on the `/v1/chat/completions` endpoint.
+The server supports Server-Sent Events (SSE) on the `/v1/chat/completions` endpoint. This improves user experience by simulating real-time responses.
 
 **Request with Streaming:**
+To enable streaming, include `"stream": true` in your request body.
+
 ```json
 {
   "model": "maker-council-v1",
-  "messages": [{"role": "user", "content": "..."}],
-  "stream": true
+  "messages": [{"role": "user", "content": "Explain the MAKER process."}],
+  "stream": true,
+  "maker_num_voters": 3,
+  "maker_k": 3
 }
 ```
 
-**Note:** MAKER-Council processes the request synchronously (waiting for consensus) and then simulates streaming by sending chunks to the client.
+**How It Works:**
+1. **Internal Processing**: MAKER-Council processes the entire request synchronously (waiting for consensus among microagents).
+2. **Streaming Simulation**: After obtaining the final response, the server sends it in small chunks (words) to the client.
+3. **Chunk Format**: The response follows standard OpenAI SSE format (`data: {...}`).
+
+**Note:** Since the processing is synchronous, there will be an initial delay before the first chunk is received.
 
 ### Endpoints
 - `POST /v1/chat/completions`: Main OpenAI-compatible endpoint.
