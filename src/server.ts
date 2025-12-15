@@ -11,6 +11,7 @@ import {
   QueryRequest,
   QueryResponse
 } from './logic.js';
+import { initializeLogic } from './logic.js';
 import { config } from './config.js';
 
 // The port is now obtained directly from the configuration object
@@ -100,13 +101,13 @@ function extractLastUserMessage(messages: OpenAIMessage[]): string {
   throw new Error('No user message found');
 }
 
-// Função auxiliar para enviar chunks SSE
+// Helper function to send SSE chunks
 function sendSSEChunk(res: express.Response, data: any): void {
   const chunk = `data: ${JSON.stringify(data)}\n\n`;
   res.write(chunk);
 }
 
-// Função para quebrar texto em chunks de palavras
+// Function to break text into word chunks
 function* chunkByWords(text: string, chunkSize: number = 5): Generator<string> {
   const words = text.split(' ');
   for (let i = 0; i < words.length; i += chunkSize) {
@@ -114,34 +115,34 @@ function* chunkByWords(text: string, chunkSize: number = 5): Generator<string> {
   }
 }
 
-// Endpoint principal - Chat Completions
+// Main endpoint - Chat Completions
 app.post('/v1/chat/completions', async (req, res) => {
   try {
-    console.log('\n[DEBUG] ========== NOVA REQUISIÇÃO ==========');
+    console.log('\n[DEBUG] ========== NEW REQUEST ==========');
     console.log('[DEBUG] Request body:', JSON.stringify(req.body, null, 2));
     console.log('[DEBUG] Messages array:', JSON.stringify(req.body.messages, null, 2));
     console.log('[DEBUG] Stream mode:', req.body.stream);
     
-    // Validar requisição
+    // Validate request
     const openaiReq: OpenAIRequest = req.body;
     
     if (!openaiReq.messages || !Array.isArray(openaiReq.messages)) {
       console.log('[DEBUG] ERROR: messages is not a valid array');
       return res.status(400).json({
         error: {
-          message: 'O campo "messages" é obrigatório e deve ser um array',
+          message: 'The "messages" field is required and must be an array',
           type: 'invalid_request_error',
           param: 'messages'
         }
       });
     }
 
-    // Extrair última mensagem do usuário
+    // Extract last user message
     const userMessage = extractLastUserMessage(openaiReq.messages);
     console.log('[DEBUG] Extracted userMessage:', userMessage);
     console.log('[DEBUG] userMessage length:', userMessage.length);
     
-    // Construir requisição para o MAKER-Council
+    // Build request for MAKER-Council
     const queryRequest: QueryRequest = {
       prompt: userMessage,
       intent: openaiReq.maker_intent,
@@ -152,7 +153,7 @@ app.post('/v1/chat/completions', async (req, res) => {
     };
     console.log('[DEBUG] QueryRequest constructed:', JSON.stringify(queryRequest, null, 2));
 
-    // Adicionar contexto se houver mensagens anteriores
+    // Add context if there are previous messages
     if (openaiReq.messages.length > 1) {
       queryRequest.context = {
         history: openaiReq.messages.map(msg => ({
@@ -163,15 +164,15 @@ app.post('/v1/chat/completions', async (req, res) => {
       console.log('[DEBUG] Context added with', openaiReq.messages.length, 'messages');
     }
 
-    // Processar com o MAKER-Council usando o objeto de configuração importado
-    console.log('[DEBUG] Chamando handleQuery...');
+    // Process with MAKER-Council using the imported configuration object
+    console.log('[DEBUG] Calling handleQuery...');
     const response: QueryResponse = await handleQuery(queryRequest);
-    console.log('[DEBUG] Resposta do handleQuery:', JSON.stringify(response, null, 2).substring(0, 500) + '...');
+    console.log('[DEBUG] Response from handleQuery:', JSON.stringify(response, null, 2).substring(0, 500) + '...');
 
-    // Verificar se o cliente solicitou streaming
+    // Check if the client requested streaming
     if (openaiReq.stream === true) {
-      console.log('[DEBUG] Modo STREAMING ativado');
-      // Configurar headers para Server-Sent Events (SSE)
+      console.log('[DEBUG] STREAMING mode enabled');
+      // Configure headers for Server-Sent Events (SSE)
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
@@ -181,16 +182,16 @@ app.post('/v1/chat/completions', async (req, res) => {
       const created = Math.floor(Date.now() / 1000);
       const model = openaiReq.model || 'maker-council-v1';
       
-      // Obter o conteúdo da resposta como string
+      // Get the response content as a string
       const content = typeof response.result === 'string'
         ? response.result
         : JSON.stringify(response.result, null, 2);
       
-      console.log('[DEBUG] Conteúdo para streaming (primeiros 200 chars):', content.substring(0, 200));
-      console.log('[DEBUG] Conteúdo total length:', content.length);
+      console.log('[DEBUG] Content for streaming (first 200 chars):', content.substring(0, 200));
+      console.log('[DEBUG] Total content length:', content.length);
       
-      // Enviar o chunk inicial com a role
-      console.log('[DEBUG] Enviando chunk inicial...');
+      // Send initial chunk with role
+      console.log('[DEBUG] Sending initial chunk...');
       sendSSEChunk(res, {
         id,
         object: 'chat.completion.chunk',
@@ -203,7 +204,7 @@ app.post('/v1/chat/completions', async (req, res) => {
         }]
       });
       
-      // Enviar o conteúdo em chunks de palavras
+      // Send content in word chunks
       for (const chunk of chunkByWords(content, 3)) {
         sendSSEChunk(res, {
           id,
@@ -217,11 +218,11 @@ app.post('/v1/chat/completions', async (req, res) => {
           }]
         });
         
-        // Pequeno delay para simular streaming real
+        // Small delay to simulate real streaming
         await new Promise(resolve => setTimeout(resolve, 30));
       }
       
-      // Enviar o chunk final com finish_reason
+      // Send final chunk with finish_reason
       console.log('[DEBUG] Sending final chunk...');
       sendSSEChunk(res, {
         id,
@@ -235,15 +236,15 @@ app.post('/v1/chat/completions', async (req, res) => {
         }]
       });
       
-      // Enviar o marcador [DONE]
+      // Send the [DONE] marker
       console.log('[DEBUG] Sending [DONE]...');
       res.write('data: [DONE]\n\n');
       res.end();
-      console.log('[DEBUG] Streaming finalizado com sucesso');
+      console.log('[DEBUG] Streaming finished successfully');
       
     } else {
-      console.log('[DEBUG] Modo NÃO-STREAMING');
-      // Resposta não-streaming (lógica original)
+      console.log('[DEBUG] NON-STREAMING mode');
+      // Non-streaming response (original logic)
       const openaiResponse: OpenAIResponse = {
         id: generateOpenAIId(),
         object: 'chat.completion',
@@ -261,7 +262,7 @@ app.post('/v1/chat/completions', async (req, res) => {
         }]
       };
 
-      // Adicionar informações de uso (estimado)
+      // Add usage information (estimated)
       const promptTokens = Math.ceil(
         openaiReq.messages.reduce((sum, msg) => {
           if (typeof msg.content === 'string') return sum + msg.content.length;
@@ -279,7 +280,7 @@ app.post('/v1/chat/completions', async (req, res) => {
         total_tokens: promptTokens + completionTokens
       };
 
-      // Adicionar headers específicos do OpenAI
+      // Add specific OpenAI headers
       res.setHeader('Content-Type', 'application/json');
       res.setHeader('Access-Control-Allow-Origin', '*');
       
@@ -287,7 +288,7 @@ app.post('/v1/chat/completions', async (req, res) => {
     }
 
   } catch (error) {
-    console.error('[Server] Erro no endpoint /v1/chat/completions:', error);
+    console.error('[Server] Error in /v1/chat/completions endpoint:', error);
     
     // If in streaming mode, send error via SSE
     if (req.body?.stream === true && !res.headersSent) {
@@ -297,7 +298,7 @@ app.post('/v1/chat/completions', async (req, res) => {
       
       sendSSEChunk(res, {
         error: {
-          message: error instanceof Error ? error.message : 'Erro interno do servidor',
+          message: error instanceof Error ? error.message : 'Internal server error',
           type: 'server_error',
           code: 'internal_error'
         }
@@ -317,7 +318,7 @@ app.post('/v1/chat/completions', async (req, res) => {
   }
 });
 
-// Endpoint de health check
+// Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
@@ -326,7 +327,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Endpoint para listar modelos disponíveis (compatibilidade OpenAI)
+// Endpoint to list available models (OpenAI compatibility)
 app.get('/v1/models', (req, res) => {
   res.json({
     object: 'list',
@@ -341,103 +342,109 @@ app.get('/v1/models', (req, res) => {
   });
 });
 
-// Middleware para rotas não encontradas
+// Middleware for not-found routes
 app.use((req, res) => {
   res.status(404).json({
     error: {
-      message: `Rota não encontrada: ${req.method} ${req.originalUrl}`,
+      message: `Route not found: ${req.method} ${req.originalUrl}`,
       type: 'invalid_request_error',
       code: 'not_found'
     }
   });
 });
 
-// Tratamento global de erros
+// Global error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('[Server] Erro não tratado:', err);
+  console.error('[Server] Unhandled error:', err);
   res.status(500).json({
     error: {
-      message: 'Erro interno do servidor',
+      message: 'Internal server error',
       type: 'server_error',
       code: 'internal_error'
     }
   });
 });
 
-// Iniciar servidor
-app.listen(PORT, () => {
-  console.log('\n' + '='.repeat(70));
-  console.log('🚀 MAKER-Council API Server');
-  console.log('='.repeat(70));
-  
-  console.log('\n📍 Endpoints:');
-  console.log(`   - Chat Completions: http://localhost:${PORT}/v1/chat/completions`);
-  console.log(`   - Health Check:     http://localhost:${PORT}/health`);
-  console.log(`   - Models List:      http://localhost:${PORT}/v1/models`);
-  
-  console.log('\n⚙️  LLM Provider Configuration:');
-  console.log(`   - API URL:          ${config.apiUrl}`);
-  console.log(`   - API Key:          ${config.apiKey ? '***' + config.apiKey.slice(-4) : '(not set)'}`);
-  console.log(`   - Default Model:    ${config.judgeModel}`);
-  
-  console.log('\n🗳️  MAKER-Council Settings:');
-  console.log(`   - Judge Model:      ${config.judgeModel}`);
-  console.log(`   - Voter Model:      ${config.voterModel}`);
-  console.log(`   - K (voting margin): ${config.k}`);
-  console.log(`   - Max Rounds:       ${config.maxRounds}`);
-  console.log(`   - Max Tokens:       ${config.maxTokens}`);
-  
-  console.log('\n⚡ Performance Settings:');
-  console.log(`   - Fast Mode:        ${config.fastMode ? 'ENABLED' : 'DISABLED'}`);
-  console.log(`   - Simple Prompt Max: ${config.simplePromptMaxLength} chars`);
-  console.log(`   - Include Report:   ${config.includeReport ? 'YES' : 'NO'}`);
-  
-  console.log('\n🔌 MCP Client Configuration:');
-  console.log(`   - Enabled:          ${config.mcpClient.enabled ? 'YES' : 'NO'}`);
-  console.log(`   - Servers:          ${config.mcpClient.servers.length} configured`);
-  if (config.mcpClient.servers.length > 0) {
-    config.mcpClient.servers.forEach(s => {
-      console.log(`     • ${s.name}: ${s.command} ${s.args.join(' ')}`);
-    });
-  }
-  console.log(`   - Default Timeout:  ${config.mcpClient.defaultTimeout}ms`);
-  console.log(`   - Max Iterations:   ${config.mcpClient.maxAgentIterations}`);
+// Start server
+async function startServer() {
+  await initializeLogic();
 
-  // Basic infinite loop prevention
-  // Checks if the API URL points to localhost with the same port as this server
-  try {
-    const url = new URL(config.apiUrl);
-    const isLocalhost = ['localhost', '127.0.0.1', '0.0.0.0', '::1'].includes(url.hostname);
-    const isSamePort = url.port === String(PORT) || (url.port === '' && PORT === 80);
-
-    if (isLocalhost && isSamePort) {
-      console.log('\n' + '!'.repeat(70));
-      console.error('❌ CRITICAL ERROR: LLM Provider URL points to this server!');
-      console.error('   This would cause an infinite loop.');
-      console.error('   Please change MAKER_BASE_URL in your .env file.');
-      console.error('   It must point to an external provider or a different port.');
-      console.log('!'.repeat(70));
-      process.exit(1);
+  app.listen(PORT, () => {
+    console.log('\n' + '='.repeat(70));
+    console.log('🚀 MAKER-Council API Server');
+    console.log('='.repeat(70));
+    
+    console.log('\n📍 Endpoints:');
+    console.log(`   - Chat Completions: http://localhost:${PORT}/v1/chat/completions`);
+    console.log(`   - Health Check:     http://localhost:${PORT}/health`);
+    console.log(`   - Models List:      http://localhost:${PORT}/v1/models`);
+    
+    console.log('\n⚙️  LLM Provider Configuration:');
+    console.log(`   - API URL:          ${config.apiUrl}`);
+    console.log(`   - API Key:          ${config.apiKey ? '***' + config.apiKey.slice(-4) : '(not set)'}`);
+    console.log(`   - Default Model:    ${config.judgeModel}`);
+    
+    console.log('\n🗳️  MAKER-Council Settings:');
+    console.log(`   - Judge Model:      ${config.judgeModel}`);
+    console.log(`   - Voter Model:      ${config.voterModel}`);
+    console.log(`   - K (voting margin): ${config.k}`);
+    console.log(`   - Max Rounds:       ${config.maxRounds}`);
+    console.log(`   - Max Tokens:       ${config.maxTokens}`);
+    
+    console.log('\n⚡ Performance Settings:');
+    console.log(`   - Fast Mode:        ${config.fastMode ? 'ENABLED' : 'DISABLED'}`);
+    console.log(`   - Simple Prompt Max: ${config.simplePromptMaxLength} chars`);
+    console.log(`   - Include Report:   ${config.includeReport ? 'YES' : 'NO'}`);
+    
+    console.log('\n🔌 MCP Client Configuration:');
+    console.log(`   - Enabled:          ${config.mcpClient.enabled ? 'YES' : 'NO'}`);
+    console.log(`   - Servers:          ${config.mcpClient.servers.length} configured`);
+    if (config.mcpClient.servers.length > 0) {
+      config.mcpClient.servers.forEach(s => {
+        console.log(`     • ${s.name}: ${s.command} ${s.args.join(' ')}`);
+      });
     }
-  } catch (e) {
-    // Ignore URL parsing errors, let the request fail naturally later
-  }
+    console.log(`   - Default Timeout:  ${config.mcpClient.defaultTimeout}ms`);
+    console.log(`   - Max Iterations:   ${config.mcpClient.maxAgentIterations}`);
+  
+    // Basic infinite loop prevention
+    // Checks if the API URL points to localhost with the same port as this server
+    try {
+      const url = new URL(config.apiUrl);
+      const isLocalhost = ['localhost', '127.0.0.1', '0.0.0.0', '::1'].includes(url.hostname);
+      const isSamePort = url.port === String(PORT) || (url.port === '' && PORT === 80);
+  
+      if (isLocalhost && isSamePort) {
+        console.log('\n' + '!'.repeat(70));
+        console.error('❌ CRITICAL ERROR: LLM Provider URL points to this server!');
+        console.error('   This would cause an infinite loop.');
+        console.error('   Please change MAKER_BASE_URL in your .env file.');
+        console.error('   It must point to an external provider or a different port.');
+        console.log('!'.repeat(70));
+        process.exit(1);
+      }
+    } catch (e) {
+      // Ignore URL parsing errors, let the request fail naturally later
+    }
+  
+    console.log('\n' + '-'.repeat(70));
+    console.log('💡 Test with curl:');
+    console.log(`curl -X POST http://localhost:${PORT}/v1/chat/completions \\`);
+    console.log('  -H "Content-Type: application/json" \\');
+    console.log('  -d \'{"messages": [{"role": "user", "content": "Hello!"}]}\'');
+    console.log('-'.repeat(70) + '\n');
+  });
+}
 
-  console.log('\n' + '-'.repeat(70));
-  console.log('💡 Test with curl:');
-  console.log(`curl -X POST http://localhost:${PORT}/v1/chat/completions \\`);
-  console.log('  -H "Content-Type: application/json" \\');
-  console.log('  -d \'{"messages": [{"role": "user", "content": "Hello!"}]}\'');
-  console.log('-'.repeat(70) + '\n');
-});
+startServer();
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('\n🛑 Recebido SIGTERM, encerrando servidor...');
+  console.log('\n🛑 SIGTERM received, shutting down server...');
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
-  console.log('\n🛑 Recebido SIGINT, encerrando servidor...');
+  console.log('\n🛑 SIGINT received, shutting down server...');
   process.exit(0);
 });

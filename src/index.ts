@@ -24,9 +24,6 @@ import {
 // Import MAKER-Council logic and configuration
 import {
   handleQuery,
-  handleConsultCouncil,
-  handleSolveWithVoting,
-  handleDecomposeTask,
   type MakerConfig,
   type QueryRequest,
   type QueryResponse,
@@ -211,26 +208,42 @@ async function main() {
           break;
         }
 
-        case "consult_council":
-          result = await handleConsultCouncil(
-            args?.query as string,
-            args?.num_voters as number | undefined,
-            args?.k as number | undefined
-          );
+        case "consult_council": {
+          const queryRequest: QueryRequest = {
+            prompt: args?.query as string,
+            intent: 'decision',
+            config: {
+              num_voters: args?.num_voters as number | undefined,
+              k: args?.k as number | undefined,
+            },
+          };
+          const response = await handleQuery(queryRequest);
+          result = JSON.stringify(response, null, 2);
           break;
+        }
 
-        case "solve_with_voting":
-          result = await handleSolveWithVoting(
-            args?.query as string,
-            args?.k as number | undefined
-          );
+        case "solve_with_voting": {
+          const queryRequest: QueryRequest = {
+            prompt: args?.query as string,
+            intent: 'validation',
+            config: {
+              k: args?.k as number | undefined,
+            },
+          };
+          const response = await handleQuery(queryRequest);
+          result = JSON.stringify(response, null, 2);
           break;
+        }
 
-        case "decompose_task":
-          result = await handleDecomposeTask(
-            args?.task as string
-          );
+        case "decompose_task": {
+          const queryRequest: QueryRequest = {
+            prompt: args?.task as string,
+            intent: 'decomposition',
+          };
+          const response = await handleQuery(queryRequest);
+          result = JSON.stringify(response, null, 2);
           break;
+        }
 
         default:
           throw new Error(`Unknown tool: ${name}`);
