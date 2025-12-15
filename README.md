@@ -4,6 +4,76 @@ Implementation of the paper **"MAKER: Massively Decomposed Agentic Processes"** 
 
 **MAKER** = **M**aximal **A**gentic decomposition + first-to-ahead-by-**K** **E**rror correction + **R**ed-flagging
 
+## 📋 Overview
+
+MAKER-Council is an implementation of the paper **"MAKER: Massively Decomposed Agentic Processes"** that offers two operating modes:
+
+1. **MCP Server Mode** - Integration with Model Context Protocol-based tools (Roo Code, Claude Desktop)
+2. **API Server Mode** - OpenAI-compatible HTTP server for integration with compatible tools (Roo Code, Cursor, etc.)
+
+The system implements the MAKER methodology through:
+
+1. **MAD** (Maximal Agentic Decomposition) - Decomposition into minimal subtasks
+2. **First-to-ahead-by-k Voting** - Voting system with k margin for consensus
+3. **Red-flagging** - Automatic discard of problematic responses
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    MCP Client (Roo/Claude)              │
+└────────────────────┬────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────┐
+│              MAKER-Council MCP Server                   │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │  Tool: consult_council                          │   │
+│  │  ┌──────────────┐  ┌──────────────┐            │   │
+│  │  │  Voter 1     │  │  Voter 2     │  ...       │   │
+│  │  │ (GLM-4.5-air)│  │ (GLM-4.5-air)│            │   │
+│  │  └──────┬───────┘  └──────┬───────┘            │   │
+│  │         │                  │                     │   │
+│  │         └────────┬─────────┘                     │   │
+│  │                  ▼                               │   │
+│  │          ┌──────────────┐                       │   │
+│  │          │  Judge       │                       │   │
+│  │          │ (GLM-4.6)    │                       │   │
+│  │          └──────────────┘                       │   │
+│  └─────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │  Tool: solve_with_voting                        │   │
+│  │  (Voting only, no judge)                        │   │
+│  └─────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │  Tool: decompose_task                           │   │
+│  │  (MAD Decomposition)                            │   │
+│  └─────────────────────────────────────────────────┘   │
+└────────────────────┬────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────┐
+│         OpenAI-compatible API (Z.AI GLM)                │
+└─────────────────────────────────────────────────────────┘
+```
+
+## 🧩 Main Components
+
+### 1. First-to-ahead-by-k Voting (Algorithm 2 from the paper)
+Microagents generate independent proposals. The process continues until a winner emerges with a margin of `k` votes over the second place.
+
+### 2. Red-Flagging (Section 3.3 of the paper)
+Criteria for automatically discarding responses:
+- **Response too long** (> `MAKER_MAX_TOKENS`): Indicates over-analysis or model confusion.
+- **Empty response**: Generation failure.
+- **Incorrect format**: Indicates problematic reasoning.
+
+### 3. Maximal Agentic Decomposition (Section 3.1 of the paper)
+Each task is decomposed into atomic steps where:
+- Each step is a single verifiable action.
+- Small enough for a microagent to execute.
+- Explicit dependencies between steps.
+
 ## 🚀 Installation
 
 ```bash
@@ -11,7 +81,20 @@ npm install
 npm run build
 ```
 
-## ⚙️ MCP Configuration
+## ⚙️ Configuration (Environment Variables)
+
+| Variable | Description | Default | Example (GLM) |
+|----------|-------------|---------|---------------|
+| `MAKER_API_KEY` | API key (required) | - | `11afe...` |
+| `MAKER_BASE_URL` | API base URL | `https://api.openai.com/v1` | `https://api.z.ai/api/coding/paas/v4` |
+| `MAKER_JUDGE_MODEL` | Judge model | `gpt-4` | `GLM-4.6` |
+| `MAKER_VOTER_MODEL` | Voters model | `gpt-3.5-turbo` | `GLM-4.5-air` |
+| `MAKER_K` | Voting margin | `3` | `3` |
+| `MAKER_MAX_TOKENS` | Limit for red-flag | `750` | `750` |
+| `MAKER_MAX_ROUNDS` | Maximum rounds | `50` | `50` |
+| `PORT` | API server port | `3000` | `3000` |
+
+## 🔌 MCP Server Mode
 
 Add to your MCP configuration file (e.g., `mcp.json` or `claude_desktop_config.json`):
 
@@ -34,195 +117,103 @@ Add to your MCP configuration file (e.g., `mcp.json` or `claude_desktop_config.j
 }
 ```
 
-### Example with GLM (Z.AI)
+### Available Tools
 
-```json
-{
-  "mcpServers": {
-    "maker-council": {
-      "command": "node",
-      "args": ["path/to/maker-council/dist/index.js"],
-      "env": {
-        "MAKER_API_KEY": "your-glm-api-key",
-        "MAKER_BASE_URL": "https://open.bigmodel.cn/api/paas/v4",
-        "MAKER_JUDGE_MODEL": "glm-4",
-        "MAKER_VOTER_MODEL": "glm-4-flash",
-        "MAKER_K": "3",
-        "MAKER_MAX_TOKENS": "750"
-      }
-    }
-  }
-}
-```
-
-### Example with OpenRouter
-
-```json
-{
-  "mcpServers": {
-    "maker-council": {
-      "command": "node",
-      "args": ["path/to/maker-council/dist/index.js"],
-      "env": {
-        "MAKER_API_KEY": "your-openrouter-key",
-        "MAKER_BASE_URL": "https://openrouter.ai/api/v1",
-        "MAKER_JUDGE_MODEL": "anthropic/claude-3-sonnet",
-        "MAKER_VOTER_MODEL": "anthropic/claude-3-haiku",
-        "MAKER_K": "3"
-      }
-    }
-  }
-}
-```
-
-## 🛠️ Available Tools
-
-### `query` (Recommended Entry Point)
+#### `query` (Recommended Entry Point)
 Unified entry point that routes the request to the most appropriate internal tool (`consult_council`, `solve_with_voting`, `decompose_task`). **This is the recommended method for all interactions.**
 
 **Parameters:**
 - `prompt` (required): The question or task to be executed.
 - `intent` (optional): Helps direct the request (`decision`, `decomposition`, `validation`).
-- `context` (optional): Object with additional context (e.g., `code`).
+- `context` (optional): Object with additional context (e.g., `code`, `history`, `filePath`).
 - `config` (optional): Overrides configuration such as `num_voters` and `k`.
 
-**Usage Example:**
-```json
-{
-  "prompt": "Refactor this function to be more efficient.",
-  "context": {
-    "code": "function inefficient() { ... }"
-  },
-  "intent": "code_review"
-}
-```
+**Routing Logic:**
+1. **Explicit `intent`**: Routes directly (`decision` -> `consult_council`, `decomposition` -> `decompose_task`, `validation` -> `solve_with_voting`).
+2. **Inference**: Infers intent from keywords in `prompt`.
+3. **Default**: Falls back to `consult_council`.
 
----
+#### Internal Tools (Advanced Usage)
 
-### Internal Tools (Advanced Usage)
-
-### `consult_council`
-Full consultation with voting and judgment. **Normally invoked via `query`.**
-
-**Parameters:**
-- `query` (required): The question or code to be analyzed.
-- `num_voters` (optional, default: 3): Number of microagents.
-- `k` (optional, default: 3): Voting margin.
-
-### `solve_with_voting`
-Solve using only voting. **Normally invoked via `query`.**
-
-**Parameters:**
-- `query` (required): The question to be solved.
-- `k` (optional, default: 3): Voting margin.
-
-### `decompose_task`
-Decomposes complex tasks. **Normally invoked via `query`.**
-
-**Parameters:**
-- `task` (required): The task to be decomposed.
+- **`consult_council`**: Full consultation with voting + judgment. Used for complex decisions and code reviews.
+- **`solve_with_voting`**: Fast resolution using only voting (no judge). Used for objective questions.
+- **`decompose_task`**: Decomposes complex tasks into atomic steps (MAD).
 
 ## 🌐 API Server Mode (OpenAI Compatible)
 
-MAKER-Council can also be run as an HTTP server that exposes an OpenAI-compatible API. This allows you to configure MAKER-Council as a "model provider" in tools like Roo Code, Cursor, or any OpenAI-compatible client.
+MAKER-Council can run as an HTTP server exposing an OpenAI-compatible API. This allows integration with tools like Roo Code, Cursor, or any OpenAI-compatible client.
 
 ### Starting the Server
 
 ```bash
 # Start the API server
 npm run serve
-
 # The server will be available at http://localhost:3000
 ```
 
-### Configuring a Client
+### Configuration & Usage
 
-Configure your client to use:
+Configure your client with:
 - **Base URL**: `http://localhost:3000/v1`
-- **Model**: `maker-council-v1` (or any name, will be ignored)
-- **API Key**: Not required (or any value for basic authentication)
+- **Model**: `maker-council-v1` (ignored)
+- **API Key**: Any value (ignored)
 
-#### Example Configuration in Roo Code
-
-In the Roo Code configuration file:
-
-```json
-{
-  "modelProvider": "openai-compatible",
-  "openai": {
-    "baseUrl": "http://localhost:3000/v1",
-    "apiKey": "any-key-here",
-    "model": "maker-council-v1"
-  }
-}
-```
-
-#### Example Configuration in Cursor
+#### Special Parameters
+You can control MAKER-Council behavior by passing additional parameters in the request body:
 
 ```json
 {
-  "openAiBaseURL": "http://localhost:3000/v1",
-  "openAiKey": "any-key-here",
-  "model": "maker-council-v1"
-}
-```
-
-### MAKER-Council Special Parameters
-
-The API accepts additional parameters in the request body to control MAKER-Council behavior:
-
-```json
-{
-  "messages": [
-    {
-      "role": "user",
-      "content": "What is the best approach for implementing authentication in REST APIs?"
-    }
-  ],
+  "messages": [{"role": "user", "content": "..."}],
   "maker_intent": "decision",
   "maker_num_voters": 5,
   "maker_k": 3
 }
 ```
 
-| Parameter | Type | Possible Values | Description |
-|-----------|------|-----------------|-------------|
-| `maker_intent` | string | `decision`, `code_review`, `decomposition`, `validation` | Forces the use of a specific tool |
-| `maker_num_voters` | number | 1-10 | Number of microagents (default: 3) |
-| `maker_k` | number | 1-10 | Voting margin (default: 3) |
+### Streaming Support
 
-### Available Endpoints
+The server supports Server-Sent Events (SSE) on the `/v1/chat/completions` endpoint.
 
-- `POST /v1/chat/completions` - Main OpenAI-compatible endpoint
-- `GET /v1/models` - List available models (compatibility)
-- `GET /health` - Server health check
-
-### Testing with curl
-
-```bash
-curl -X POST http://localhost:3000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [{"role": "user", "content": "What is the best approach for authentication in APIs?"}],
-    "maker_intent": "decision"
-  }'
+**Request with Streaming:**
+```json
+{
+  "model": "maker-council-v1",
+  "messages": [{"role": "user", "content": "..."}],
+  "stream": true
+}
 ```
 
-## 📊 Environment Variables
+**Note:** MAKER-Council processes the request synchronously (waiting for consensus) and then simulates streaming by sending chunks to the client.
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `MAKER_API_KEY` | API key (required) | - |
-| `MAKER_BASE_URL` | API base URL | `https://api.openai.com/v1` |
-| `MAKER_JUDGE_MODEL` | Model for the judge | `gpt-4` |
-| `MAKER_VOTER_MODEL` | Model for the voters | `gpt-3.5-turbo` |
-| `MAKER_K` | Voting margin | `3` |
-| `MAKER_MAX_TOKENS` | Limit for red-flagging | `750` |
-| `MAKER_MAX_ROUNDS` | Maximum rounds | `50` |
-| `PORT` | API server port | `3000` |
+### Endpoints
+- `POST /v1/chat/completions`: Main OpenAI-compatible endpoint.
+- `GET /v1/models`: List available models (fake for compatibility).
+- `GET /health`: Server health check.
+
+## 📂 Project Structure
+
+```
+maker-council/
+├── 📄 DOC 2511.09030v1.pdf          # Original MAKER paper
+├── 📄 README.md                      # This file
+├── 📄 package.json                   # Node.js dependencies
+├── 📄 tsconfig.json                  # TypeScript configuration
+├── 📁 src/                           # TypeScript source code
+│   ├── 📄 index.ts                   # Main MCP implementation
+│   ├── 📄 server.ts                  # OpenAI-compatible HTTP server
+│   └── 📄 logic.ts                   # MAKER-Council processing logic
+├── 📁 tests/                         # Automated tests
+├── 📁 dist/                          # Compiled code (generated)
+└── 📁 .roo/                          # Roo configuration
+```
+
+## 📊 Scalability & Performance
+
+- **Cost Law**: `E[cost] = Θ(s × ln(s))` (Log-linear growth).
+- **Success Probability**: `P[success] = (1 + ((1-p)/p)^k)^(-s)`.
+  - With `p=0.995` and `k=3`, it's possible to solve tasks with **1 million steps** with high probability of success!
 
 ## 📄 Reference
 
 Paper: [MAKER: Massively Decomposed Agentic Processes](https://arxiv.org/abs/2511.09030)
-
 > "Solving a Million-Step LLM Task with Zero Errors" - Meyerson et al., 2025
