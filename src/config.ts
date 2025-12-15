@@ -178,16 +178,26 @@ function createConfig(): Config {
   // MAKER_API_URL takes precedence.
   // IMPORTANT: Default to OpenAI API to avoid self-referencing loop
   // (the server runs on port 8338, so we must NOT default to that)
-  const apiUrl = process.env.MAKER_API_URL || process.env.MAKER_BASE_URL || 'https://api.openai.com/v1';
+  let apiUrl = (process.env.MAKER_API_URL || process.env.MAKER_BASE_URL || 'https://api.openai.com/v1').trim();
+
+  // Ensure the base URL has a trailing slash, as the SDK might not join paths correctly otherwise.
+  if (apiUrl && !apiUrl.endsWith('/')) {
+    apiUrl += '/';
+  }
 
   // The default model can be defined by MAKER_API_MODEL.
+  // Using gpt-4o-mini as default since it's widely supported by OpenAI-compatible APIs
   const defaultModel = process.env.MAKER_API_MODEL || 'gpt-4o-mini';
 
   const appConfig: Config = {
     apiKey: process.env.MAKER_API_KEY || "",
     apiUrl: apiUrl,
+    // Judge model: use a capable model for complex reasoning
+    // Falls back to default model if not specified
     judgeModel: process.env.MAKER_JUDGE_MODEL || defaultModel,
-    voterModel: process.env.MAKER_VOTER_MODEL || 'gpt-4o-mini',
+    // Voter model: can be faster/cheaper since multiple calls are made
+    // Falls back to gpt-4o-mini which is widely supported
+    voterModel: process.env.MAKER_VOTER_MODEL || defaultModel,
     k: getNumericEnv("MAKER_K", 3),
     maxTokens: getNumericEnv("MAKER_MAX_TOKENS", 16000),
     maxRounds: getNumericEnv("MAKER_MAX_ROUNDS", 10),

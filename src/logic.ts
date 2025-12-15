@@ -98,25 +98,52 @@ export async function createMessage(
   temperature: number = 0.7,
   maxTokens: number = 1024
 ): Promise<{ text: string; tokens: number }> {
-  const client = getClient();
+  // Construct the full URL, appending /v1/chat/completions to the base URL.
+  // The base URL from config already has a trailing slash.
+  // The apiUrl already includes /v1/ if configured correctly in config.ts
+  // but we need to ensure we don't double append it or miss it.
+  // The OpenAI-compatible endpoint is usually /chat/completions relative to base.
+  
+  // If apiUrl ends with /v1/, we should append chat/completions
+  // If apiUrl ends with /, we should append chat/completions
+  // But wait, config.ts says: "MAKER_BASE_URL=http://localhost:8317/v1"
+  // And it ensures trailing slash: "http://localhost:8317/v1/"
+  
+  // So if we append "v1/chat/completions", we get "http://localhost:8317/v1/v1/chat/completions" -> 404
+  
+  const url = `${config.apiUrl}chat/completions`;
   
   try {
     console.error(`[MAKER] Calling API: model=${model}, temp=${temperature}, maxTokens=${maxTokens}`);
-    console.error(`[MAKER] Base URL: ${config.apiUrl}`);
+    console.error(`[MAKER] Full URL: ${url}`);
     
-    const response = await client.chat.completions.create({
-      model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      temperature,
-      max_tokens: maxTokens,
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        temperature,
+        max_tokens: maxTokens,
+      }),
     });
 
-    console.error(`[MAKER] Response received: choices=${response.choices?.length || 0}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`${response.status} ${errorText}`);
+    }
+
+    const data = await response.json() as any;
+
+    console.error(`[MAKER] Response received: choices=${data.choices?.length || 0}`);
     
-    const message = response.choices?.[0]?.message as any;
+    const message = data.choices?.[0]?.message as any;
     let text = message?.content || "";
     const reasoningText = message?.reasoning_content || "";
     
@@ -128,7 +155,7 @@ export async function createMessage(
       text = JSON.stringify(message);
     }
     
-    const tokens = response.usage?.completion_tokens || Math.ceil(text.length / 4);
+    const tokens = data.usage?.completion_tokens || Math.ceil(text.length / 4);
     
     console.error(`[MAKER] Extracted text: ${text.substring(0, 100)}... (${tokens} tokens)`);
     console.error(`[MAKER] Has reasoning: ${!!reasoningText}, Has content: ${!!message?.content}`);
@@ -137,9 +164,6 @@ export async function createMessage(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`[MAKER] API error: ${errorMessage}`);
-    if (error instanceof Error && 'response' in error) {
-      console.error(`[MAKER] Response details:`, JSON.stringify((error as any).response?.data || {}));
-    }
     throw new Error(`API error: ${errorMessage}`);
   }
 }
@@ -972,14 +996,17 @@ export async function executeAgentLoop(
 
     try {
       // Call LLM with tools
-      const response = await client.chat.completions.create({
-        model: effectiveConfig.model,
-        messages,
-        tools: tools.length > 0 ? tools : undefined,
-        tool_choice: tools.length > 0 ? 'auto' : undefined,
-        temperature: effectiveConfig.temperature,
-        max_tokens: effectiveConfig.maxTokens,
-      });
+      const response = await client.chat.completions.create(
+        {
+          model: effectiveConfig.model,
+          messages,
+          tools: tools.length > 0 ? tools : undefined,
+          tool_choice: tools.length > 0 ? 'auto' : undefined,
+          temperature: effectiveConfig.temperature,
+          max_tokens: effectiveConfig.maxTokens,
+        },
+        { path: "/chat/completions" }
+      );
 
       const choice = response.choices[0];
       const message = choice.message;
