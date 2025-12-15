@@ -38,18 +38,73 @@ npm install
 
 ### 2. Configuration
 
-Configuration is handled through a `.env` file and a JSON manifest for tools.
+Configuration is handled through a `.env` file and a JSON manifest for external tools.
 
 #### a) Environment Variables
 
 Create a `.env` file in the root of the project by copying the `.env.example`. At a minimum, you must provide your LLM provider's API key.
 
+##### Core Settings
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|:--------:|
+| `MAKER_API_KEY` | API key for the LLM provider. Essential for authentication. | - | ✅ |
+| `MAKER_API_URL` | Base URL for the LLM API. Takes precedence over `MAKER_BASE_URL`. | `https://api.openai.com/v1` | |
+| `MAKER_BASE_URL` | Alternative base URL for the LLM API (fallback). | `https://api.openai.com/v1` | |
+| `MAKER_API_PORT` | Port on which the API server listens. | `8338` | |
+
+##### Model Configuration
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|:--------:|
+| `MAKER_API_MODEL` | Default fallback model for all operations. | `gpt-4o-mini` | |
+| `MAKER_JUDGE_MODEL` | Model used by the Senior Judge for routing and complex reasoning. | Falls back to `MAKER_API_MODEL` | |
+| `MAKER_VOTER_MODEL` | Model used by Voters/Microagents for generating proposals. | Falls back to `MAKER_API_MODEL` | |
+
+##### MAKER Algorithm Settings
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|:--------:|
+| `MAKER_K` | Voting margin 'k' for the first-to-ahead-by-k algorithm. | `3` | |
+| `MAKER_MAX_TOKENS` | Maximum tokens for LLM-generated responses (used for red-flagging). | `16000` | |
+| `MAKER_MAX_ROUNDS` | Maximum voting rounds before forcing a decision. | `10` | |
+
+##### Behavior & Performance
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|:--------:|
+| `MAKER_FAST_MODE` | Enable fast mode for simple prompts (greetings, short questions). | `true` | |
+| `MAKER_SIMPLE_PROMPT_MAX_LENGTH` | Character limit to consider a prompt as "simple" for fast mode. | `50` | |
+| `MAKER_INCLUDE_REPORT` | Include full technical report in response. If `false`, returns only the decision. | `false` | |
+| `MAKER_MCP_MODE` | Force MCP mode (stdin/stdout communication instead of HTTP server). | `false` | |
+
+##### MCP Client Configuration
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|:--------:|
+| `MAKER_MCP_CLIENT_ENABLED` | Enable MCP client functionality to connect to external tools. | `false` | |
+| `MAKER_MCP_TIMEOUT` | Default timeout for tool execution (milliseconds). | `30000` | |
+| `MAKER_MCP_MAX_ITERATIONS` | Maximum iterations in the agent loop. | `10` | |
+
+##### Example `.env` File
+
 ```bash
-# .env
+# Required
 MAKER_API_KEY="your-llm-provider-api-key"
-MAKER_API_URL="https://api.openai.com/v1" # Or your provider's URL
-MAKER_JUDGE_MODEL="gpt-4-turbo"          # A powerful model for routing and judging
-MAKER_VOTER_MODEL="gpt-3.5-turbo"        # A faster model for generating proposals
+
+# LLM Provider (optional - defaults to OpenAI)
+MAKER_API_URL="https://api.openai.com/v1"
+
+# Models (optional - uses defaults if not set)
+MAKER_JUDGE_MODEL="gpt-4-turbo"
+MAKER_VOTER_MODEL="gpt-3.5-turbo"
+
+# Algorithm tuning (optional)
+MAKER_K=3
+MAKER_MAX_ROUNDS=10
+
+# Enable external tools via MCP
+MAKER_MCP_CLIENT_ENABLED=true
 ```
 
 #### b) External Tools (MCPs)
@@ -75,11 +130,6 @@ External tools are registered in the `maker-mcps/mcp.json` file. This allows you
     }
   ]
 }
-```
-To use external tools, enable the client in your `.env` file:
-```bash
-# .env
-MAKER_MCP_CLIENT_ENABLED=true
 ```
 
 ### 3. Running the Server
@@ -122,7 +172,7 @@ curl --location 'http://localhost:8338/v1/chat/completions' \
 }'
 ```
 
-## 核心概念
+## 🧠 Core Concepts
 
 ### Internal Tools
 

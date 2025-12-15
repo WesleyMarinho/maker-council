@@ -57,6 +57,7 @@ export interface QueryContext {
   code?: string;
   history?: Array<{ role: string; content: string }>;
   filePath?: string;
+  recursionDepth?: number;
   [key: string]: unknown;
 }
 
@@ -112,11 +113,11 @@ export async function createMessage(
   maxTokens: number = 1024
 ): Promise<{ text: string; tokens: number }> {
   const url = `${config.apiUrl}chat/completions`;
-  
+
   try {
     console.error(`[MAKER] Calling API: model=${model}, temp=${temperature}, maxTokens=${maxTokens}`);
     console.error(`[MAKER] Full URL: ${url}`);
-    
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -142,11 +143,11 @@ export async function createMessage(
     const data = await response.json() as any;
 
     console.error(`[MAKER] Response received: choices=${data.choices?.length || 0}`);
-    
+
     const message = data.choices?.[0]?.message as any;
     let text = message?.content || "";
     const reasoningText = message?.reasoning_content || "";
-    
+
     if (reasoningText && text) {
       text = text;
     } else if (reasoningText && !text) {
@@ -154,12 +155,12 @@ export async function createMessage(
     } else if (!reasoningText && !text) {
       text = JSON.stringify(message);
     }
-    
+
     const tokens = data.usage?.completion_tokens || Math.ceil(text.length / 4);
-    
+
     console.error(`[MAKER] Extracted text: ${text.substring(0, 100)}... (${tokens} tokens)`);
     console.error(`[MAKER] Has reasoning: ${!!reasoningText}, Has content: ${!!message?.content}`);
-    
+
     return { text, tokens };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -265,21 +266,35 @@ export async function firstToAheadByKVoting(
     state.redFlagged++;
   }
 
-  // Iterative voting
-  for (let round = 1; round < config.maxRounds; round++) {
-    try {
-      const { text, tokens } = await createMessage(
+  // Parallel Samples (batch execution)
+  const pendingSamples = config.maxRounds - state.totalSamples;
+  const BATCH_SIZE = 5; // Adjust as needed for rate limits
+
+  for (let i = 0; i < pendingSamples; i += BATCH_SIZE) {
+    const currentBatchSize = Math.min(BATCH_SIZE, pendingSamples - i);
+    const promises = Array.from({ length: currentBatchSize }, () =>
+      createMessage(
         model,
         systemPrompt,
         prompt,
         temperature,
         config.maxTokens + 100
-      );
-      state.totalSamples++;
+      ).catch(() => null) // Suppress errors in Promise.all to handle them individually
+    );
 
-      const flagResult = checkRedFlags(text, tokens, config.maxTokens);
+    const batchResults = await Promise.all(promises);
+
+    for (const result of batchResults) {
+      if (!result) {
+        state.redFlagged++;
+        continue;
+      }
+
+      state.totalSamples++;
+      const flagResult = checkRedFlags(result.text, result.tokens, config.maxTokens);
+
       if (flagResult.isValid) {
-        const canonical = extractAnswer(text);
+        const canonical = extractAnswer(result.text);
         if (canonical) {
           state.validSamples++;
           state.votes.set(canonical, (state.votes.get(canonical) || 0) + 1);
@@ -292,8 +307,6 @@ export async function firstToAheadByKVoting(
       } else {
         state.redFlagged++;
       }
-    } catch {
-      state.redFlagged++;
     }
   }
 
@@ -311,10 +324,11 @@ export async function firstToAheadByKVoting(
   return { winner, state };
 }
 
+
 export function checkWinner(votes: Map<string, number>, candidate: string, k: number): boolean {
   const currentVotes = votes.get(candidate) || 0;
   let maxOtherVotes = 0;
-  
+
   for (const [key, v] of votes) {
     if (key !== candidate && v > maxOtherVotes) {
       maxOtherVotes = v;
@@ -389,37 +403,37 @@ export function extractCleanResponse(rawResult: string): string {
   if (!rawResult.includes('# MAKER-Council Report') && !rawResult.includes('# First-to-ahead-by-')) {
     return rawResult;
   }
-  
+
   // Try to extract the final judge's decision
   const judgeDecisionMatch = rawResult.match(/## Decisão Final do Juiz\s*\n\n([\s\S]*?)(?=\n## |$)/);
   if (judgeDecisionMatch) {
     return judgeDecisionMatch[1].trim();
   }
-  
+
   // Try to extract the "## Decisão" section
   const decisionMatch = rawResult.match(/## Decisão\s*\n\n?([\s\S]*?)(?=\n## |$)/);
   if (decisionMatch) {
     return decisionMatch[1].trim();
   }
-  
+
   // Try to extract "Winning Response" (for solve_with_voting)
   const winnerMatch = rawResult.match(/## Winning Response\s*\n\n([\s\S]*?)(?=\n## |$)/);
   if (winnerMatch) {
     return winnerMatch[1].trim();
   }
-  
+
   // If there's an Analysis section followed by a Decision, get the Decision
   const analysisDecisionMatch = rawResult.match(/## Análise[\s\S]*?## Decisão\s*\n\n?([\s\S]*?)(?=\n## |$)/);
   if (analysisDecisionMatch) {
     return analysisDecisionMatch[1].trim();
   }
-  
+
   // Fallback: remove the report header and return the rest
   const withoutHeader = rawResult.replace(/# MAKER-Council Report[\s\S]*?## Decisão Final do Juiz\s*\n\n/, '');
   if (withoutHeader !== rawResult) {
     return withoutHeader.trim();
   }
-  
+
   // Last fallback: return the original text
   return rawResult;
 }
@@ -442,32 +456,50 @@ export function buildFullPrompt(prompt: string, context?: QueryContext): string 
   if (!context) {
     return prompt;
   }
-  
+
   const parts: string[] = [];
-  
+
   if (context.filePath) {
     parts.push(`File: ${context.filePath}`);
   }
-  
+
   if (context.code) {
     parts.push(`Code:\n\`\`\`\n${context.code}\n\`\`\``);
   }
-  
+
   if (context.history && context.history.length > 0) {
     const historyText = context.history
       .map(h => `${h.role}: ${h.content}`)
       .join('\n');
     parts.push(`History:\n${historyText}`);
   }
-  
+
   parts.push(`Query: ${prompt}`);
-  
+
   return parts.join('\n\n');
 }
 
 export async function handleQuery(request: QueryRequest): Promise<QueryResponse> {
   const startTime = Date.now();
   const requestId = generateRequestId();
+
+  // Recursion Guard (Loop Prevention)
+  const currentDepth = request.context?.recursionDepth || 0;
+  if (currentDepth > config.maxRecursionDepth) {
+    console.error(`[LOGIC] Max recursion depth reached (${currentDepth}). Aborting.`);
+    return {
+      result: `Error: Maximum recursion depth reached. The agent loop was terminated to prevent infinite loops.`,
+      metadata: {
+        tool_used: 'system_error',
+        request_id: requestId,
+        timestamp: new Date().toISOString(),
+        performance: {
+          total_time_seconds: 0,
+        },
+        raw_output: "Max recursion depth reached."
+      }
+    };
+  }
 
   // Fast path for simple greetings - bypass tool dispatcher
   if (isSimpleGreeting(request.prompt)) {
@@ -493,7 +525,18 @@ export async function handleQuery(request: QueryRequest): Promise<QueryResponse>
   const messages: ChatCompletionMessageParam[] = [
     {
       role: 'system',
-      content: `You are a tool-dispatching agent. Your sole function is to analyze the user's prompt and the list of available tools, and then respond ONLY with the most appropriate tool call (tool_calls) for the task. Do not provide any conversational text or explanations. If no tool seems appropriate, respond with an empty JSON object.`
+      content: `You are a high-level orchestration agent. Your goal is to route the user's request to the appropriate tool.
+      
+      TOOLS AVAILABLE:
+      ${availableTools.map(t => `- ${t.function.name}: ${(t.function.description || '').split('\n')[0]}`).join('\n')}
+      
+      INSTRUCTIONS:
+      1. Analyze the user's prompt and intent.
+      2. Select the MOST specific tool for the job.
+      3. If the user wants to solve a problem with consensus, use 'consult_council' or 'solve_with_voting'.
+      4. If the user wants to break down a big task, use 'decompose_task'.
+      5. If the request implies using an external tool (MCP), select that tool.
+      6. Respond ONLY with the tool call. Do not provide explanations.`
     },
     {
       role: 'user',
@@ -517,19 +560,19 @@ export async function handleQuery(request: QueryRequest): Promise<QueryResponse>
     const fallbackResult = await executeInternalTool('solve_with_voting', { query: request.prompt });
     const totalTime = (Date.now() - startTime) / 1000;
     return {
-        result: fallbackResult,
-        metadata: {
-            tool_used: 'solve_with_voting',
-            request_id: requestId,
-            timestamp: new Date().toISOString(),
-            performance: {
-                total_time_seconds: totalTime,
-            },
-            raw_output: typeof fallbackResult === 'string' ? fallbackResult : JSON.stringify(fallbackResult),
-        }
+      result: fallbackResult,
+      metadata: {
+        tool_used: 'solve_with_voting',
+        request_id: requestId,
+        timestamp: new Date().toISOString(),
+        performance: {
+          total_time_seconds: totalTime,
+        },
+        raw_output: typeof fallbackResult === 'string' ? fallbackResult : JSON.stringify(fallbackResult),
+      }
     };
   }
-  
+
   const toolName = toolCall.function.name;
   let args = JSON.parse(toolCall.function.arguments);
   console.log(`[LOGIC] LLM selected tool: ${toolName} with args:`, args);
@@ -541,6 +584,13 @@ export async function handleQuery(request: QueryRequest): Promise<QueryResponse>
     delete args.file_path;
   }
 
+  // Fix for search_for_pattern argument mismatch (pattern -> substring_pattern)
+  if (toolName.includes('search_for_pattern') && args.pattern && !args.substring_pattern) {
+    console.log('[LOGIC] Applying argument correction: pattern -> substring_pattern');
+    args.substring_pattern = args.pattern;
+    delete args.pattern;
+  }
+
   let executionResult: any;
 
   if (internalTools.some(t => t.function.name === toolName)) {
@@ -548,12 +598,12 @@ export async function handleQuery(request: QueryRequest): Promise<QueryResponse>
   } else {
     const mcpManager = getMcpToolManager();
     if (!mcpManager) {
-        throw new Error("MCP Tool Manager not initialized.");
+      throw new Error("MCP Tool Manager not initialized.");
     }
     const mcpResult = await mcpManager.executeTool({ toolName, arguments: args });
     executionResult = mcpResult.success ? mcpResult.content : `Error executing MCP tool: ${mcpResult.error}`;
   }
-  
+
   const raw_output_for_metadata = typeof executionResult === 'string' ? executionResult : JSON.stringify(executionResult);
   const totalTime = (Date.now() - startTime) / 1000;
 
@@ -572,69 +622,69 @@ export async function handleQuery(request: QueryRequest): Promise<QueryResponse>
 }
 
 async function internalHandleConsultCouncil(query: string, num_voters?: number, k?: number): Promise<string> {
-    const voters = num_voters || 3; // Default to 3 if not provided
-    const model = config.voterModel;
-    const temp = 0.1; // Default temperature
-    const judgeModel = config.judgeModel;
-    const startTime = Date.now();
+  const voters = num_voters || 3; // Default to 3 if not provided
+  const model = config.voterModel;
+  const temp = 0.1; // Default temperature
+  const judgeModel = config.judgeModel;
+  const startTime = Date.now();
 
-    const proposalPromises = Array.from({ length: voters }, () =>
-        createMessage(model, VOTER_SYSTEM_PROMPT, query, temp)
-    );
-    const results = await Promise.all(proposalPromises);
-    const proposals = results.map(r => r.text);
+  const proposalPromises = Array.from({ length: voters }, () =>
+    createMessage(model, VOTER_SYSTEM_PROMPT, query, temp)
+  );
+  const results = await Promise.all(proposalPromises);
+  const proposals = results.map(r => r.text);
 
-    const judgePrompt = `QUESTION: "${query}"\n\nPROPOSALS:\n\n${proposals
-        .map((p, i) => `--- PROPOSAL ${i + 1} ---\n${p}`)
-        .join("\n\n")}`;
+  const judgePrompt = `QUESTION: "${query}"\n\nPROPOSALS:\n\n${proposals
+    .map((p, i) => `--- PROPOSAL ${i + 1} ---\n${p}`)
+    .join("\n\n")}`;
 
-    const { text: judgeDecision } = await createMessage(
-        judgeModel,
-        JUDGE_SYSTEM_PROMPT,
-        judgePrompt,
-        0.2
-    );
-    
-    const elapsedTime = (Date.now() - startTime) / 1000;
-    const result = `# MAKER-Council Report\n\n## Final Judge's Decision\n\n${judgeDecision}\n\n---\n*Report: ${voters} voters, took ${elapsedTime.toFixed(2)}s*`;
-    return result;
+  const { text: judgeDecision } = await createMessage(
+    judgeModel,
+    JUDGE_SYSTEM_PROMPT,
+    judgePrompt,
+    0.2
+  );
+
+  const elapsedTime = (Date.now() - startTime) / 1000;
+  const result = `# MAKER-Council Report\n\n## Final Judge's Decision\n\n${judgeDecision}\n\n---\n*Report: ${voters} voters, took ${elapsedTime.toFixed(2)}s*`;
+  return result;
 }
 
 async function internalHandleSolveWithVoting(query: string, k?: number): Promise<string> {
-    const { winner, state } = await firstToAheadByKVoting(
-        query,
-        VOTER_SYSTEM_PROMPT,
-        config.voterModel,
-        k || config.k,
-        0.1 // Default temperature
-    );
-    const result = `# First-to-ahead-by-${state.votes.get(winner)} Voting Result\n\n## Winning Response\n\n${winner}\n\n---\n*Report: ${state.validSamples}/${state.totalSamples} samples valid, ${state.redFlagged} red-flagged, took ${state.elapsedTime.toFixed(2)}s*`;
-    return result;
+  const { winner, state } = await firstToAheadByKVoting(
+    query,
+    VOTER_SYSTEM_PROMPT,
+    config.voterModel,
+    k || config.k,
+    0.1 // Default temperature
+  );
+  const result = `# First-to-ahead-by-${state.votes.get(winner)} Voting Result\n\n## Winning Response\n\n${winner}\n\n---\n*Report: ${state.validSamples}/${state.totalSamples} samples valid, ${state.redFlagged} red-flagged, took ${state.elapsedTime.toFixed(2)}s*`;
+  return result;
 }
 
 async function internalHandleDecomposeTask(task: string): Promise<string> {
-    const { text } = await createMessage(
-        config.judgeModel,
-        DECOMPOSER_SYSTEM_PROMPT,
-        task,
-        0.1,
-        config.maxTokens
-    );
-    return text;
+  const { text } = await createMessage(
+    config.judgeModel,
+    DECOMPOSER_SYSTEM_PROMPT,
+    task,
+    0.1,
+    config.maxTokens
+  );
+  return text;
 }
 
 async function executeInternalTool(toolName: string, args: any): Promise<any> {
-    console.log(`[LOGIC] Executing internal tool: ${toolName}`);
-    switch (toolName) {
-        case 'consult_council':
-            return internalHandleConsultCouncil(args.query, args.num_voters, args.k);
-        case 'solve_with_voting':
-            return internalHandleSolveWithVoting(args.query, args.k);
-        case 'decompose_task':
-            return internalHandleDecomposeTask(args.task);
-        default:
-            throw new Error(`Unknown internal tool: ${toolName}`);
-    }
+  console.log(`[LOGIC] Executing internal tool: ${toolName}`);
+  switch (toolName) {
+    case 'consult_council':
+      return internalHandleConsultCouncil(args.query, args.num_voters, args.k);
+    case 'solve_with_voting':
+      return internalHandleSolveWithVoting(args.query, args.k);
+    case 'decompose_task':
+      return internalHandleDecomposeTask(args.task);
+    default:
+      throw new Error(`Unknown internal tool: ${toolName}`);
+  }
 }
 
 // ============================================================================
@@ -674,9 +724,9 @@ export async function initializeMcpClient(): Promise<McpToolManager | null> {
   }
 
   console.error(`[MAKER] Initializing MCP Client with ${serverConfigs.length} servers...`);
-  
+
   mcpToolManager = new McpToolManager(serverConfigs);
-  
+
   try {
     await mcpToolManager.initialize();
     console.error(`[MAKER] MCP Client initialized: ${mcpToolManager.getToolCount()} tools available`);

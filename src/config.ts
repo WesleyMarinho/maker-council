@@ -23,22 +23,22 @@ if (result.error) {
 export interface McpServerDefinition {
   /** Unique identifier for this server */
   name: string;
-  
+
   /** Command to execute (e.g., 'npx', 'node', 'python') */
   command: string;
-  
+
   /** Arguments to pass to the command */
   args: string[];
-  
+
   /** Optional environment variables for the process */
   env?: Record<string, string>;
-  
+
   /** Optional working directory */
   cwd?: string;
-  
+
   /** Connection timeout in milliseconds */
   timeout?: number;
-  
+
   /** Whether to automatically reconnect on disconnect */
   autoReconnect?: boolean;
 }
@@ -68,7 +68,7 @@ export interface Config {
 
   /** Maximum number of voting rounds before forcing a decision. */
   maxRounds: number;
-  
+
   /** Port on which the API server will listen. */
   port: number;
 
@@ -88,16 +88,19 @@ export interface Config {
   mcpClient: {
     /** Whether to enable MCP client functionality */
     enabled: boolean;
-    
+
     /** List of MCP servers to connect to */
     servers: McpServerDefinition[];
-    
+
     /** Default timeout for tool execution (ms) */
     defaultTimeout: number;
-    
+
     /** Maximum iterations in agent loop */
     maxAgentIterations: number;
   };
+
+  /** Maximum recursion depth for nested agent calls (loop prevention) */
+  maxRecursionDepth: number;
 }
 
 /**
@@ -155,7 +158,7 @@ function loadMcpManifest(): McpServerDefinition[] {
     }
 
     const enabledServers = manifest.mcpServers.filter((server: any) => server.enabled !== false);
-    
+
     return enabledServers as McpServerDefinition[];
   } catch (error) {
     console.error('[CONFIG] Failed to read or parse MCP manifest:', error);
@@ -202,6 +205,7 @@ function createConfig(): Config {
       defaultTimeout: getNumericEnv("MAKER_MCP_TIMEOUT", 30000),
       maxAgentIterations: getNumericEnv("MAKER_MCP_MAX_ITERATIONS", 10),
     },
+    maxRecursionDepth: getNumericEnv("MAKER_MAX_RECURSION_DEPTH", 5),
   };
 
   // Critical validation: the API key is required.
