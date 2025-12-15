@@ -1,26 +1,27 @@
 {
-  "mcpServers": {
-    "maker-council": {
-      "command": "node",
-      "args": [
-        "dist/index.js"
-      ],
-      "cwd": "c:\\Users\\Wesley Marinho\\Documents\\Custom MCPs\\maker-council",
-      "env": {
-        "MAKER_API_KEY": "dummy",
-        "MAKER_BASE_URL": "http://localhost:8317/v1",
-        "MAKER_JUDGE_MODEL": "gemini-3-pro-preview",
-        "MAKER_VOTER_MODEL": "gemini-2.5-flash-lite",
-        "MAKER_K": "3",
-        "MAKER_MAX_TOKENS": "16000",
-        "MAKER_MAX_ROUNDS": "50"
-      },
-      "alwaysAllow": [
-        "consult_council",
-        "decompose_task",
-        "solve_with_voting"
-      ],
-      "timeout": 600
+    "mcpServers": {
+        "maker-council": {
+            "command": "node",
+            "args": [
+                "c:\\Users\\Wesley Marinho\\Documents\\Custom MCPs\\maker-council\\dist\\index.js",
+                "--mcp"
+            ],
+            "env": {
+                "MAKER_API_KEY": "dummy",
+                "MAKER_BASE_URL": "http://localhost:8317/v1",
+                "MAKER_JUDGE_MODEL": "gemini-3-pro-preview",
+                "MAKER_VOTER_MODEL": "gemini-2.5-flash-lite",
+                "MAKER_K": "3",
+                "MAKER_MAX_TOKENS": "16000",
+                "MAKER_MAX_ROUNDS": "5",
+                "MAKER_MCP_MODE": "true"
+            },
+            "alwaysAllow": [
+                "consult_council",
+                "decompose_task",
+                "solve_with_voting"
+            ],
+            "timeout": 600
+        }
     }
-  }
 }

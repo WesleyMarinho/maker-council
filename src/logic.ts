@@ -4,7 +4,17 @@
  */
 
 import OpenAI from "openai";
+import type { ChatCompletionMessageParam, ChatCompletionToolMessageParam } from "openai/resources/chat/completions";
 import { config } from "./config.js";
+import {
+  McpToolManager,
+  ToolSchemaTranslator,
+  type McpServerConfig,
+  type OpenAIToolCall,
+  type ToolExecutionResult,
+  type AgentLoopConfig,
+  type AgentLoopResult,
+} from "./mcp-client/index.js";
 export type { Config as MakerConfig } from "./config.js";
 
 // ============================================================================
@@ -643,10 +653,9 @@ export async function handleQuery(
   console.error('[LOGIC DEBUG] fullPrompt constructed:', fullPrompt.substring(0, 200) + '...');
   console.error('[LOGIC DEBUG] fullPrompt length:', fullPrompt.length);
   
-  const numVoters = request.config?.num_voters;
-  const k = request.config?.k;
-  
-  console.error('[LOGIC DEBUG] numVoters:', numVoters, 'k:', k);
+  // Use config values as defaults when not provided in request
+  const numVoters = request.config?.num_voters ?? 3;
+  const k = request.config?.k ?? config.k;
   
   let rawOutput: string;
   let result: string | object;
@@ -696,21 +705,22 @@ export async function handleQuery(
 
 export async function handleConsultCouncil(
   query: string,
-  numVoters: number = 3,
-  k: number = 3
+  numVoters?: number,
+  k?: number
 ): Promise<string> {
-  numVoters = Math.max(1, Math.min(numVoters, 10));
-  k = Math.max(1, Math.min(k, 10));
+  // Use config.k as default, then clamp to valid range
+  const effectiveNumVoters = Math.max(1, Math.min(numVoters ?? 3, 10));
+  const effectiveK = Math.max(1, Math.min(k ?? config.k, 10));
 
   const totalStart = Date.now();
   const proposals: Array<{ voterId: number; proposal: string; state: VotingState }> = [];
 
-  for (let i = 0; i < numVoters; i++) {
+  for (let i = 0; i < effectiveNumVoters; i++) {
     const { winner, state } = await firstToAheadByKVoting(
       query,
       VOTER_SYSTEM_PROMPT,
       config.voterModel,
-      k
+      effectiveK
     );
     proposals.push({ voterId: i + 1, proposal: winner, state });
   }
@@ -750,20 +760,21 @@ export async function handleConsultCouncil(
   const totalValid = proposals.reduce((sum, p) => sum + p.state.validSamples, 0);
   const totalFlagged = proposals.reduce((sum, p) => sum + p.state.redFlagged, 0);
 
-  return `# MAKER-Council Report\n\n## Configuration\n- Voters: ${numVoters}\n- Margin k (first-to-ahead-by-k): ${k}\n- Voters Model: ${config.voterModel}\n- Judge Model: ${config.judgeModel}\n\n## Voting Metrics\n- Total samples: ${totalSamples}\n- Valid samples: ${totalValid}\n- Red-flagged (discarded): ${totalFlagged}\n- Red-flag rate: ${totalSamples > 0 ? ((totalFlagged / totalSamples) * 100).toFixed(1) : 0}%\n\n## Performance\n- Total time: ${totalTime.toFixed(2)}s\n- Voting time: ${votingTime.toFixed(2)}s\n- Judgment time: ${judgeTime.toFixed(2)}s\n\n## Received Proposals\n${validProposals.map(p => `- Voter ${p.voterId}: ${p.proposal.length} chars, ${p.state.validSamples} votes, ${p.state.elapsedTime.toFixed(2)}s`).join("\n")}\n\n## Judge's Final Decision\n\n${judgeResponse}`;
+  return `# MAKER-Council Report\n\n## Configuration\n- Voters: ${effectiveNumVoters}\n- Margin k (first-to-ahead-by-k): ${effectiveK}\n- Voters Model: ${config.voterModel}\n- Judge Model: ${config.judgeModel}\n\n## Voting Metrics\n- Total samples: ${totalSamples}\n- Valid samples: ${totalValid}\n- Red-flagged (discarded): ${totalFlagged}\n- Red-flag rate: ${totalSamples > 0 ? ((totalFlagged / totalSamples) * 100).toFixed(1) : 0}%\n\n## Performance\n- Total time: ${totalTime.toFixed(2)}s\n- Voting time: ${votingTime.toFixed(2)}s\n- Judgment time: ${judgeTime.toFixed(2)}s\n\n## Received Proposals\n${validProposals.map(p => `- Voter ${p.voterId}: ${p.proposal.length} chars, ${p.state.validSamples} votes, ${p.state.elapsedTime.toFixed(2)}s`).join("\n")}\n\n## Judge's Final Decision\n\n${judgeResponse}`;
 }
 
 export async function handleSolveWithVoting(
   query: string,
-  k: number = 3
+  k?: number
 ): Promise<string> {
-  k = Math.max(1, Math.min(k, 10));
+  // Use config.k as default, then clamp to valid range
+  const effectiveK = Math.max(1, Math.min(k ?? config.k, 10));
 
   const { winner, state } = await firstToAheadByKVoting(
     query,
     VOTER_SYSTEM_PROMPT,
     config.voterModel,
-    k
+    effectiveK
   );
 
   if (!winner) {
@@ -774,7 +785,7 @@ export async function handleSolveWithVoting(
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
 
-  return `# First-to-ahead-by-${k} Voting Result\n\n## Metrics\n- Total samples: ${state.totalSamples}\n- Valid samples: ${state.validSamples}\n- Red-flagged: ${state.redFlagged}\n- Unique candidates: ${state.votes.size}\n\n## Performance\n- Total time: ${state.elapsedTime.toFixed(2)}s\n\n## Vote Distribution\n${votesArray.map(([_, votes], i) => `- Candidate ${i + 1}: ${votes} votes`).join("\n")}\n\n## Winning Response\n\n${winner}`;
+  return `# First-to-ahead-by-${effectiveK} Voting Result\n\n## Metrics\n- Total samples: ${state.totalSamples}\n- Valid samples: ${state.validSamples}\n- Red-flagged: ${state.redFlagged}\n- Unique candidates: ${state.votes.size}\n\n## Performance\n- Total time: ${state.elapsedTime.toFixed(2)}s\n\n## Vote Distribution\n${votesArray.map(([_, votes], i) => `- Candidate ${i + 1}: ${votes} votes`).join("\n")}\n\n## Winning Response\n\n${winner}`;
 }
 
 export async function handleDecomposeTask(task: string): Promise<string> {
@@ -805,6 +816,353 @@ export async function handleDecomposeTask(task: string): Promise<string> {
       error: error instanceof Error ? error.message : String(error),
     }, null, 2);
   }
+}
+
+// ============================================================================
+// MCP CLIENT INTEGRATION
+// ============================================================================
+
+// Global MCP Tool Manager instance
+let mcpToolManager: McpToolManager | null = null;
+
+/**
+ * Initialize the MCP Tool Manager with configured servers
+ */
+export async function initializeMcpClient(): Promise<McpToolManager | null> {
+  if (!config.mcpClient.enabled) {
+    console.error('[MAKER] MCP Client is disabled');
+    return null;
+  }
+
+  if (mcpToolManager) {
+    console.error('[MAKER] MCP Client already initialized');
+    return mcpToolManager;
+  }
+
+  const serverConfigs: McpServerConfig[] = config.mcpClient.servers.map(s => ({
+    name: s.name,
+    command: s.command,
+    args: s.args,
+    env: s.env,
+    cwd: s.cwd,
+    timeout: s.timeout || config.mcpClient.defaultTimeout,
+    autoReconnect: s.autoReconnect,
+  }));
+
+  if (serverConfigs.length === 0) {
+    console.error('[MAKER] No MCP servers configured');
+    return null;
+  }
+
+  console.error(`[MAKER] Initializing MCP Client with ${serverConfigs.length} servers...`);
+  
+  mcpToolManager = new McpToolManager(serverConfigs);
+  
+  try {
+    await mcpToolManager.initialize();
+    console.error(`[MAKER] MCP Client initialized: ${mcpToolManager.getToolCount()} tools available`);
+    return mcpToolManager;
+  } catch (err) {
+    console.error('[MAKER] Failed to initialize MCP Client:', err);
+    mcpToolManager = null;
+    return null;
+  }
+}
+
+/**
+ * Get the MCP Tool Manager instance
+ */
+export function getMcpToolManager(): McpToolManager | null {
+  return mcpToolManager;
+}
+
+/**
+ * Shutdown the MCP Tool Manager
+ */
+export async function shutdownMcpClient(): Promise<void> {
+  if (mcpToolManager) {
+    await mcpToolManager.shutdown();
+    mcpToolManager = null;
+  }
+}
+
+/**
+ * Agent loop system prompt for tool use
+ */
+const AGENT_SYSTEM_PROMPT = `You are an intelligent agent with access to external tools.
+When you need to perform actions or get information, use the available tools.
+Always explain what you're doing and why you're using specific tools.
+After using tools, synthesize the results into a helpful response.
+
+IMPORTANT:
+- Use tools when they can help answer the user's question
+- Explain your reasoning before and after tool use
+- If a tool fails, try an alternative approach or explain the limitation
+- Provide a final summary after completing all necessary tool calls`;
+
+/**
+ * Execute an agent loop with tool support
+ * This allows the MAKER agent to use tools from connected MCP servers
+ */
+export async function executeAgentLoop(
+  userPrompt: string,
+  systemPrompt?: string,
+  loopConfig?: AgentLoopConfig
+): Promise<AgentLoopResult> {
+  const startTime = Date.now();
+  const effectiveConfig: Required<AgentLoopConfig> = {
+    maxIterations: loopConfig?.maxIterations ?? config.mcpClient.maxAgentIterations,
+    includeToolResults: loopConfig?.includeToolResults ?? true,
+    toolTimeout: loopConfig?.toolTimeout ?? config.mcpClient.defaultTimeout,
+    model: loopConfig?.model ?? config.judgeModel,
+    temperature: loopConfig?.temperature ?? 0.7,
+    maxTokens: loopConfig?.maxTokens ?? config.maxTokens,
+  };
+
+  const toolsCalled: AgentLoopResult['toolsCalled'] = [];
+  let iterations = 0;
+
+  // Check if MCP client is available
+  if (!mcpToolManager || !mcpToolManager.hasConnections()) {
+    // No tools available, just do a simple LLM call
+    try {
+      const { text } = await createMessage(
+        effectiveConfig.model,
+        systemPrompt || AGENT_SYSTEM_PROMPT,
+        userPrompt,
+        effectiveConfig.temperature,
+        effectiveConfig.maxTokens
+      );
+
+      return {
+        response: text,
+        toolsCalled: [],
+        iterations: 1,
+        totalTime: Date.now() - startTime,
+        success: true,
+      };
+    } catch (err) {
+      return {
+        response: '',
+        toolsCalled: [],
+        iterations: 1,
+        totalTime: Date.now() - startTime,
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
+
+  // Get available tools in OpenAI format
+  const tools = mcpToolManager.getToolsAsOpenAI();
+  console.error(`[MAKER Agent] Starting loop with ${tools.length} tools available`);
+
+  // Build conversation messages
+  const messages: ChatCompletionMessageParam[] = [
+    { role: 'system', content: systemPrompt || AGENT_SYSTEM_PROMPT },
+    { role: 'user', content: userPrompt },
+  ];
+
+  const client = getClient();
+
+  // Agent loop
+  while (iterations < effectiveConfig.maxIterations) {
+    iterations++;
+    console.error(`[MAKER Agent] Iteration ${iterations}/${effectiveConfig.maxIterations}`);
+
+    try {
+      // Call LLM with tools
+      const response = await client.chat.completions.create({
+        model: effectiveConfig.model,
+        messages,
+        tools: tools.length > 0 ? tools : undefined,
+        tool_choice: tools.length > 0 ? 'auto' : undefined,
+        temperature: effectiveConfig.temperature,
+        max_tokens: effectiveConfig.maxTokens,
+      });
+
+      const choice = response.choices[0];
+      const message = choice.message;
+
+      // Check if there are tool calls
+      if (message.tool_calls && message.tool_calls.length > 0) {
+        console.error(`[MAKER Agent] LLM requested ${message.tool_calls.length} tool calls`);
+
+        // Add assistant message with tool calls
+        messages.push({
+          role: 'assistant',
+          content: message.content || '',
+          tool_calls: message.tool_calls.map(tc => ({
+            id: tc.id,
+            type: 'function' as const,
+            function: {
+              name: tc.function.name,
+              arguments: tc.function.arguments,
+            },
+          })),
+        });
+
+        // Execute each tool call
+        for (const toolCall of message.tool_calls) {
+          const toolName = ToolSchemaTranslator.unsanitizeToolName(toolCall.function.name);
+          let args: Record<string, unknown>;
+          
+          try {
+            args = JSON.parse(toolCall.function.arguments);
+          } catch {
+            args = {};
+          }
+
+          console.error(`[MAKER Agent] Executing tool: ${toolName}`);
+          console.error(`[MAKER Agent] Arguments:`, JSON.stringify(args));
+
+          const result = await mcpToolManager.executeTool({
+            toolName,
+            arguments: args,
+            timeout: effectiveConfig.toolTimeout,
+          });
+
+          toolsCalled.push({
+            name: toolName,
+            arguments: args,
+            result,
+          });
+
+          // Add tool result to messages
+          const resultContent = result.success
+            ? (typeof result.content === 'string' ? result.content : JSON.stringify(result.content))
+            : `Error: ${result.error}`;
+
+          const toolMessage: ChatCompletionToolMessageParam = {
+            role: 'tool',
+            content: resultContent,
+            tool_call_id: toolCall.id,
+          };
+          messages.push(toolMessage);
+
+          console.error(`[MAKER Agent] Tool result: ${result.success ? 'success' : 'error'}`);
+        }
+
+        // Continue loop to get LLM response with tool results
+        continue;
+      }
+
+      // No tool calls, we have a final response
+      const finalResponse = message.content || '';
+      console.error(`[MAKER Agent] Final response received after ${iterations} iterations`);
+
+      return {
+        response: finalResponse,
+        toolsCalled,
+        iterations,
+        totalTime: Date.now() - startTime,
+        success: true,
+      };
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error(`[MAKER Agent] Error in iteration ${iterations}:`, errorMessage);
+
+      return {
+        response: '',
+        toolsCalled,
+        iterations,
+        totalTime: Date.now() - startTime,
+        success: false,
+        error: errorMessage,
+      };
+    }
+  }
+
+  // Max iterations reached
+  console.error(`[MAKER Agent] Max iterations (${effectiveConfig.maxIterations}) reached`);
+  
+  // Try to get a final response without tools
+  try {
+    const { text } = await createMessage(
+      effectiveConfig.model,
+      'Summarize the conversation and provide a final response based on the tool results so far.',
+      messages.map(m => `${m.role}: ${m.content}`).join('\n'),
+      effectiveConfig.temperature,
+      effectiveConfig.maxTokens
+    );
+
+    return {
+      response: text,
+      toolsCalled,
+      iterations,
+      totalTime: Date.now() - startTime,
+      success: true,
+    };
+  } catch {
+    return {
+      response: 'Max iterations reached. Please try a simpler query.',
+      toolsCalled,
+      iterations,
+      totalTime: Date.now() - startTime,
+      success: false,
+      error: 'Max iterations reached',
+    };
+  }
+}
+
+/**
+ * Execute a query with tool support using the MAKER methodology
+ * Combines MAKER-Council's voting/judging with MCP tool execution
+ */
+export async function handleQueryWithTools(
+  request: QueryRequest,
+  loopConfig?: AgentLoopConfig
+): Promise<QueryResponse> {
+  const startTime = Date.now();
+  const requestId = generateRequestId();
+
+  // Check if MCP client is enabled and has tools
+  if (!mcpToolManager || !mcpToolManager.hasConnections()) {
+    // Fall back to regular query handling
+    return handleQuery(request);
+  }
+
+  // For decomposition, use regular handling (no tools needed)
+  const intent: Intent = request.intent || inferIntent(request.prompt);
+  if (intent === 'decomposition') {
+    return handleQuery(request);
+  }
+
+  // Execute agent loop with tools
+  const fullPrompt = buildFullPrompt(request.prompt, request.context);
+  const result = await executeAgentLoop(fullPrompt, undefined, loopConfig);
+
+  const totalTime = (Date.now() - startTime) / 1000;
+
+  // Build response with tool execution info
+  const toolInfo = result.toolsCalled.length > 0
+    ? `\n\n---\n**Tools Used:** ${result.toolsCalled.map(t => t.name).join(', ')}\n**Iterations:** ${result.iterations}`
+    : '';
+
+  return {
+    result: result.response + toolInfo,
+    metadata: {
+      tool_used: 'consult_council' as ToolUsed,
+      request_id: requestId,
+      timestamp: new Date().toISOString(),
+      performance: {
+        total_time_seconds: totalTime,
+      },
+      raw_output: JSON.stringify({
+        response: result.response,
+        toolsCalled: result.toolsCalled.map(t => ({
+          name: t.name,
+          arguments: t.arguments,
+          success: t.result.success,
+          executionTime: t.result.executionTime,
+        })),
+        iterations: result.iterations,
+        success: result.success,
+        error: result.error,
+      }),
+    },
+  };
 }
 
 // ============================================================================

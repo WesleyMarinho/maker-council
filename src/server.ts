@@ -366,19 +366,43 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // Iniciar servidor
 app.listen(PORT, () => {
-  console.log(`\n🚀 MAKER-Council API Server started on port ${PORT}`);
-  console.log(`📍 Endpoint: http://localhost:${PORT}/v1/chat/completions`);
-  console.log(`🏥 Health check: http://localhost:${PORT}/health`);
-  console.log(`📚 Models: http://localhost:${PORT}/v1/models`);
-  console.log('\n⚙️  Configuration:');
-  console.log(`   - LLM Provider URL: ${config.apiUrl}`);
-  console.log(`   - Judge Model: ${config.judgeModel}`);
-  console.log(`   - Voter Model: ${config.voterModel}`);
+  console.log('\n' + '='.repeat(70));
+  console.log('🚀 MAKER-Council API Server');
+  console.log('='.repeat(70));
+  
+  console.log('\n📍 Endpoints:');
+  console.log(`   - Chat Completions: http://localhost:${PORT}/v1/chat/completions`);
+  console.log(`   - Health Check:     http://localhost:${PORT}/health`);
+  console.log(`   - Models List:      http://localhost:${PORT}/v1/models`);
+  
+  console.log('\n⚙️  LLM Provider Configuration:');
+  console.log(`   - API URL:          ${config.apiUrl}`);
+  console.log(`   - API Key:          ${config.apiKey ? '***' + config.apiKey.slice(-4) : '(not set)'}`);
+  console.log(`   - Default Model:    ${config.judgeModel}`);
+  
+  console.log('\n🗳️  MAKER-Council Settings:');
+  console.log(`   - Judge Model:      ${config.judgeModel}`);
+  console.log(`   - Voter Model:      ${config.voterModel}`);
   console.log(`   - K (voting margin): ${config.k}`);
-  console.log(`   - Max Tokens: ${config.maxTokens}`);
-  console.log(`   - Fast Mode: ${config.fastMode}`);
-  console.log(`   - Simple Prompt Max Length: ${config.simplePromptMaxLength}`);
-  console.log(`   - Include Report: ${config.includeReport}`);
+  console.log(`   - Max Rounds:       ${config.maxRounds}`);
+  console.log(`   - Max Tokens:       ${config.maxTokens}`);
+  
+  console.log('\n⚡ Performance Settings:');
+  console.log(`   - Fast Mode:        ${config.fastMode ? 'ENABLED' : 'DISABLED'}`);
+  console.log(`   - Simple Prompt Max: ${config.simplePromptMaxLength} chars`);
+  console.log(`   - Include Report:   ${config.includeReport ? 'YES' : 'NO'}`);
+  
+  console.log('\n🔌 MCP Client Configuration:');
+  console.log(`   - Enabled:          ${config.mcpClient.enabled ? 'YES' : 'NO'}`);
+  console.log(`   - Servers:          ${config.mcpClient.servers.length} configured`);
+  if (config.mcpClient.servers.length > 0) {
+    config.mcpClient.servers.forEach(s => {
+      console.log(`     • ${s.name}: ${s.command} ${s.args.join(' ')}`);
+    });
+  }
+  console.log(`   - Default Timeout:  ${config.mcpClient.defaultTimeout}ms`);
+  console.log(`   - Max Iterations:   ${config.mcpClient.maxAgentIterations}`);
+
   // Basic infinite loop prevention
   // Checks if the API URL points to localhost with the same port as this server
   try {
@@ -387,18 +411,24 @@ app.listen(PORT, () => {
     const isSamePort = url.port === String(PORT) || (url.port === '' && PORT === 80);
 
     if (isLocalhost && isSamePort) {
-      console.error('\n❌ CRITICAL ERROR: LLM Provider URL points to this server (localhost loop)!');
-      console.error('   This would cause an infinite loop. Please change MAKER_BASE_URL in your .env file.');
-      console.error('   MAKER_BASE_URL must point to an external provider (e.g. OpenAI, OpenRouter) or a different port.');
+      console.log('\n' + '!'.repeat(70));
+      console.error('❌ CRITICAL ERROR: LLM Provider URL points to this server!');
+      console.error('   This would cause an infinite loop.');
+      console.error('   Please change MAKER_BASE_URL in your .env file.');
+      console.error('   It must point to an external provider or a different port.');
+      console.log('!'.repeat(70));
       process.exit(1);
     }
   } catch (e) {
     // Ignore URL parsing errors, let the request fail naturally later
   }
-  console.log('\n💡 Para testar com curl:');
+
+  console.log('\n' + '-'.repeat(70));
+  console.log('💡 Test with curl:');
   console.log(`curl -X POST http://localhost:${PORT}/v1/chat/completions \\`);
   console.log('  -H "Content-Type: application/json" \\');
-  console.log('  -d \'{"messages": [{"role": "user", "content": "Qual é a melhor abordagem para autenticação em APIs?"}]}\'');
+  console.log('  -d \'{"messages": [{"role": "user", "content": "Hello!"}]}\'');
+  console.log('-'.repeat(70) + '\n');
 });
 
 // Graceful shutdown

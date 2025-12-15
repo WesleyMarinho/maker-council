@@ -1,10 +1,15 @@
 # Regras de Uso do MAKER-Council MCP
 
-> **Versão:** 1.0 | **Atualizado:** 2024-12-12
+> **Versão:** 1.1 | **Atualizado:** 2025-12-15
 
 ---
 
 ## 🎯 QUANDO USAR O MAKER-COUNCIL
+
+### ✅ USE `query` (API Unificada - RECOMENDADO) para:
+- **Qualquer consulta** - Roteamento automático baseado no prompt
+- **Quando não sabe qual ferramenta usar** - O sistema infere a intenção
+- **Integração simplificada** - Um único ponto de entrada
 
 ### ✅ USE `consult_council` para:
 - **Decisões arquiteturais** - Escolha de padrões, estrutura de projeto
@@ -34,6 +39,46 @@
 ---
 
 ## 📋 FORMATO DE CONSULTA
+
+### Para `query` (API Unificada - RECOMENDADO):
+
+```xml
+<use_mcp_tool>
+<server_name>maker-council</server_name>
+<tool_name>query</tool_name>
+<arguments>
+{
+  "prompt": "Sua pergunta ou tarefa aqui",
+  "context": {
+    "code": "// código relevante (opcional)",
+    "filePath": "src/exemplo.ts"
+  },
+  "intent": "decision",
+  "config": {
+    "num_voters": 3,
+    "k": 3
+  }
+}
+</arguments>
+</use_mcp_tool>
+```
+
+**Parâmetros:**
+- `prompt` (obrigatório): A pergunta ou tarefa principal
+- `context` (opcional): Objeto com contexto adicional
+  - `code`: Trecho de código relevante
+  - `history`: Array de interações passadas `[{role, content}]`
+  - `filePath`: Caminho do arquivo sendo analisado
+- `intent` (opcional): Intenção explícita - `'decision'`, `'code_review'`, `'decomposition'`, `'validation'`
+- `config` (opcional): Configuração de execução
+  - `num_voters`: Número de microagentes (1-10)
+  - `k`: Margem de votação (1-10)
+
+**Roteamento automático:**
+- `intent='decision'` ou `'code_review'` → `consult_council`
+- `intent='decomposition'` → `decompose_task`
+- `intent='validation'` → `solve_with_voting`
+- Sem intent: inferido automaticamente do prompt
 
 ### Para `consult_council`:
 
@@ -236,3 +281,101 @@
 - Query pode estar mal formatada
 - Verifique conexão com API
 - Tente com query mais simples primeiro
+
+---
+
+## 💡 EXEMPLOS PRÁTICOS
+
+### Exemplo 1: Usando `query` (Recomendado)
+```xml
+<use_mcp_tool>
+<server_name>maker-council</server_name>
+<tool_name>query</tool_name>
+<arguments>
+{
+  "prompt": "Preciso implementar autenticação JWT em uma API Node.js/Express com TypeScript. O projeto já tem middleware de rate limiting. Requisitos: refresh tokens, logout em todos dispositivos.",
+  "intent": "decision",
+  "config": {
+    "num_voters": 5,
+    "k": 3
+  }
+}
+</arguments>
+</use_mcp_tool>
+```
+
+### Exemplo 2: Decisão Arquitetural com `consult_council`
+```xml
+<use_mcp_tool>
+<server_name>maker-council</server_name>
+<tool_name>consult_council</tool_name>
+<arguments>
+{
+  "query": "CONTEXTO:\nEstamos desenvolvendo uma API REST em Node.js/Express para um sistema de e-commerce.\n\nPROBLEMA:\nPreciso decidir como estruturar o sistema de autenticação e autorização.\n\nOPÇÕES CONSIDERADAS:\n1. JWT com refresh tokens armazenados em Redis\n2. Sessions com express-session e Redis\n3. OAuth2 com Passport.js\n\nCRITÉRIOS:\n- Performance (esperamos 10k usuários simultâneos)\n- Segurança (PCI compliance necessário)\n- Facilidade de manutenção\n- Suporte a múltiplos dispositivos por usuário",
+  "num_voters": 5,
+  "k": 3
+}
+</arguments>
+</use_mcp_tool>
+```
+
+### Exemplo 3: Refactoring com `consult_council`
+```xml
+<use_mcp_tool>
+<server_name>maker-council</server_name>
+<tool_name>consult_council</tool_name>
+<arguments>
+{
+  "query": "CONTEXTO:\nTemos uma função legacy que processa pedidos e cresceu para 300+ linhas.\n\nCÓDIGO ATUAL:\n```typescript\nasync function processOrder(orderId: string) {\n  // validação\n  // busca no banco\n  // cálculo de preços\n  // aplicação de descontos\n  // validação de estoque\n  // processamento de pagamento\n  // envio de emails\n  // atualização de status\n}\n```\n\nPROBLEMA:\nComo refatorar mantendo compatibilidade e testabilidade?\n\nCRITÉRIOS:\n- Não quebrar integrações existentes\n- Facilitar testes unitários\n- Separar responsabilidades",
+  "num_voters": 3,
+  "k": 3
+}
+</arguments>
+</use_mcp_tool>
+```
+
+### Exemplo 4: Debugging com `solve_with_voting`
+```xml
+<use_mcp_tool>
+<server_name>maker-council</server_name>
+<tool_name>solve_with_voting</tool_name>
+<arguments>
+{
+  "query": "Tenho um memory leak em produção. A aplicação Node.js consome cada vez mais memória até crashar. Heap dump mostra muitos Promises pendentes. Principais hipóteses: 1) Event listeners não removidos, 2) Closures retendo referências, 3) Cache sem limite de tamanho. Qual investigar primeiro e como?",
+  "k": 5
+}
+</arguments>
+</use_mcp_tool>
+```
+
+### Exemplo 5: Decomposição de Task com `decompose_task`
+```xml
+<use_mcp_tool>
+<server_name>maker-council</server_name>
+<tool_name>decompose_task</tool_name>
+<arguments>
+{
+  "task": "Implementar sistema de notificações em tempo real que deve:\n1. Suportar WebSocket e Server-Sent Events\n2. Persistir notificações não lidas\n3. Permitir preferências de notificação por usuário\n4. Integrar com Firebase Cloud Messaging para mobile\n5. Incluir rate limiting e anti-spam\n6. Dashboard admin para envio de notificações em massa"
+}
+</arguments>
+</use_mcp_tool>
+```
+
+---
+
+## 📌 CHECKLIST PRÉ-IMPLEMENTAÇÃO
+
+Antes de implementar qualquer mudança significativa, pergunte-se:
+
+- [ ] É uma decisão arquitetural? → **USE consult_council**
+- [ ] Afeta múltiplos arquivos? → **USE consult_council**
+- [ ] É código de segurança/pagamento? → **USE consult_council (num_voters=5)**
+- [ ] A task é complexa? → **USE decompose_task PRIMEIRO**
+- [ ] Tenho dúvida entre abordagens? → **USE consult_council**
+- [ ] É um bug difícil? → **USE solve_with_voting para hipóteses**
+
+**Se respondeu SIM a qualquer item: USE O MAKER-COUNCIL!**
+
+---
+
+Mantenha estas regras visíveis durante o desenvolvimento! 🚀

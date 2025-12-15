@@ -85,20 +85,30 @@ npm run build
 
 | Variable | Description | Default | Example (GLM) |
 |----------|-------------|---------|---------------|
+| `MAKER_API_PORT` | API server port | `8338` | `8338` |
 | `MAKER_API_KEY` | API key (required) | - | `11afe...` |
-| `MAKER_API_URL` | API base URL (Priority over BASE_URL) | `http://localhost:8338/v1` | `https://api.z.ai/api/coding/paas/v4` |
+| `MAKER_API_URL` | API base URL (Priority over BASE_URL) | - | `https://api.z.ai/api/coding/paas/v4` |
 | `MAKER_BASE_URL` | API base URL (Alternative) | `https://api.openai.com/v1` | `https://api.z.ai/api/coding/paas/v4` |
-| `MAKER_API_MODEL` | Default fallback model | `gemini-3-pro-preview` | `GLM-4-Plus` |
-| `MAKER_JUDGE_MODEL` | Judge model | `gpt-4` | `GLM-4.6` |
-| `MAKER_VOTER_MODEL` | Voters model | `gpt-3.5-turbo` | `GLM-4.5-air` |
+| `MAKER_API_MODEL` | Default fallback model | `gemini-3-pro-preview` | `glm-4.5-air` |
+| `MAKER_JUDGE_MODEL` | Judge model | `gemini-3-pro-preview` | `glm-4.6` |
+| `MAKER_VOTER_MODEL` | Voters model | `gemini-2.5-flash-lite` | `glm-4.5-air` |
 | `MAKER_K` | Voting margin | `3` | `3` |
 | `MAKER_MAX_TOKENS` | Limit for red-flag | `16000` | `16000` |
-| `MAKER_MAX_ROUNDS` | Maximum rounds | `10` | `10` |
-| `MAKER_API_PORT` | API server port | `8338` | `8338` |
+| `MAKER_MAX_ROUNDS` | Maximum rounds | `10` | `5` |
+| `MAKER_MCP_MODE` | Force MCP mode (stdin/stdout) | `false` | `true` |
 | `MAKER_FAST_MODE` | Enable fast mode for simple prompts | `true` | `true` |
 | `MAKER_INCLUDE_REPORT` | Include technical report in response | `false` | `true` |
 | `MAKER_SIMPLE_PROMPT_MAX_LENGTH` | Char limit for fast mode | `50` | `50` |
-| `MAKER_MCP_MODE` | Force MCP mode | `false` | `true` |
+
+### MCP Client Configuration
+
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `MAKER_MCP_CLIENT_ENABLED` | Enable MCP client functionality | `false` | `true` |
+| `MAKER_MCP_SERVERS` | MCP servers to connect to (JSON or simple format) | `[]` | See below |
+| `MAKER_MCP_TIMEOUT` | Default timeout for tool execution (ms) | `30000` | `60000` |
+| `MAKER_MCP_MAX_ITERATIONS` | Max iterations in agent loop | `10` | `20` |
+| `MAKER_MCP_AUTO_RECONNECT` | Auto-reconnect on disconnect | `false` | `true` |
 
 ## 🔌 MCP Server Mode
 
@@ -205,6 +215,144 @@ To enable streaming, include `"stream": true` in your request body.
 - `GET /v1/models`: List available models (fake for compatibility).
 - `GET /health`: Server health check.
 
+## 🔧 MCP Client Mode (NEW)
+
+MAKER-Council can now act as an **MCP Client**, connecting to other MCP servers to discover and execute their tools. This enables the MAKER agent to use external tools during its reasoning process.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    MAKER-Council Agent                       │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │              McpToolManager                          │    │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │    │
+│  │  │McpConnection│  │McpConnection│  │McpConnection│  │    │
+│  │  │  (Server 1) │  │  (Server 2) │  │  (Server N) │  │    │
+│  │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  │    │
+│  └─────────┼────────────────┼────────────────┼─────────┘    │
+└────────────┼────────────────┼────────────────┼──────────────┘
+             │                │                │
+             ▼                ▼                ▼
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│   MCP Server 1  │  │   MCP Server 2  │  │   MCP Server N  │
+│   (e.g., fs)    │  │   (e.g., git)   │  │   (custom)      │
+└─────────────────┘  └─────────────────┘  └─────────────────┘
+```
+
+### Configuration
+
+#### JSON Format (Recommended)
+```bash
+export MAKER_MCP_CLIENT_ENABLED=true
+export MAKER_MCP_SERVERS='[
+  {
+    "name": "filesystem",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"]
+  },
+  {
+    "name": "git",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-git"]
+  }
+]'
+```
+
+#### Simple Format
+For quick configuration, use a semicolon-separated format:
+```bash
+export MAKER_MCP_SERVERS='filesystem:npx:-y:@modelcontextprotocol/server-filesystem:/tmp;git:npx:-y:@modelcontextprotocol/server-git'
+```
+
+Format: `name:command:arg1:arg2:...;name2:command2:arg1:...`
+
+### Usage in Code
+
+```typescript
+import {
+  initializeMcpClient,
+  executeAgentLoop,
+  handleQueryWithTools,
+  getMcpToolManager,
+  shutdownMcpClient
+} from './logic.js';
+
+// Initialize MCP client (connects to configured servers)
+await initializeMcpClient();
+
+// Execute an agent loop with tool support
+const result = await executeAgentLoop(
+  "List all files in the current directory and summarize them",
+  undefined, // optional custom system prompt
+  {
+    maxIterations: 10,
+    toolTimeout: 30000,
+    model: 'gpt-4',
+    temperature: 0.7,
+  }
+);
+
+console.log(result.response);
+console.log(`Tools called: ${result.toolsCalled.length}`);
+
+// Or use the unified query handler with tools
+const response = await handleQueryWithTools({
+  prompt: "What git branches exist in this repository?",
+  intent: 'decision',
+});
+
+// Shutdown when done
+await shutdownMcpClient();
+```
+
+### Key Components
+
+#### McpToolManager
+The main entry point for managing MCP connections:
+- `initialize()`: Connect to all configured servers
+- `getAllTools()`: Get all available tools from all servers
+- `executeTool(request)`: Execute a tool by name
+- `getToolsAsOpenAI()`: Get tools in OpenAI function format
+- `shutdown()`: Disconnect from all servers
+
+#### McpConnection
+Handles individual server connections:
+- Manages stdio transport lifecycle
+- Discovers tools via `listTools`
+- Executes tools via `callTool`
+- Supports auto-reconnect
+
+#### ToolSchemaTranslator
+Converts between MCP and LLM tool formats:
+- `toOpenAITool()`: Convert MCP tool to OpenAI format
+- `toAnthropicTool()`: Convert MCP tool to Anthropic format
+- `validateArguments()`: Validate tool arguments against schema
+
+### Agent Loop
+
+The agent loop enables iterative tool use:
+
+1. **Initial Call**: Send user prompt with available tools to LLM
+2. **Tool Detection**: Check if LLM requested tool calls
+3. **Tool Execution**: Execute requested tools via McpToolManager
+4. **Result Injection**: Feed tool results back to LLM
+5. **Repeat**: Continue until LLM provides final response (or max iterations)
+
+```
+User Prompt → LLM (with tools) → Tool Calls?
+                                    │
+                    ┌───────────────┴───────────────┐
+                    │ Yes                           │ No
+                    ▼                               ▼
+            Execute Tools                    Final Response
+                    │
+                    ▼
+            Feed Results to LLM
+                    │
+                    └──────────→ Loop
+```
+
 ## 📂 Project Structure
 
 ```
@@ -216,7 +364,14 @@ maker-council/
 ├── 📁 src/                           # TypeScript source code
 │   ├── 📄 index.ts                   # Main MCP implementation
 │   ├── 📄 server.ts                  # OpenAI-compatible HTTP server
-│   └── 📄 logic.ts                   # MAKER-Council processing logic
+│   ├── 📄 logic.ts                   # MAKER-Council processing logic
+│   ├── 📄 config.ts                  # Configuration management
+│   └── 📁 mcp-client/                # MCP Client infrastructure
+│       ├── 📄 index.ts               # Module exports
+│       ├── 📄 types.ts               # Type definitions
+│       ├── 📄 McpConnection.ts       # Individual server connections
+│       ├── 📄 McpToolManager.ts      # Multi-server management
+│       └── 📄 ToolSchemaTranslator.ts # Schema conversion utilities
 ├── 📁 tests/                         # Automated tests
 ├── 📁 dist/                          # Compiled code (generated)
 └── 📁 .roo/                          # Roo configuration

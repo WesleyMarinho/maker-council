@@ -254,10 +254,11 @@ async function main() {
   console.error("MAKER-Council MCP Server started");
 }
 
-// Detect execution mode based on environment variable or argument
+// Detect execution mode based on configuration or command-line argument
 // MAKER_MCP_MODE=true forces MCP mode (used by MCP client)
+// --mcp flag also enables MCP mode
 // By default, when executed directly (npm run dev), starts HTTP server
-const isMCPMode = process.env.MAKER_MCP_MODE === 'true' || process.argv.includes('--mcp');
+const isMCPMode = config.mcpMode || process.argv.includes('--mcp');
 
 if (isMCPMode) {
   // MCP mode: use stdin/stdout for communication with MCP client
