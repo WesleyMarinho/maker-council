@@ -86,13 +86,19 @@ npm run build
 | Variable | Description | Default | Example (GLM) |
 |----------|-------------|---------|---------------|
 | `MAKER_API_KEY` | API key (required) | - | `11afe...` |
-| `MAKER_BASE_URL` | API base URL | `https://api.openai.com/v1` | `https://api.z.ai/api/coding/paas/v4` |
+| `MAKER_API_URL` | API base URL (Priority over BASE_URL) | `http://localhost:8338/v1` | `https://api.z.ai/api/coding/paas/v4` |
+| `MAKER_BASE_URL` | API base URL (Alternative) | `https://api.openai.com/v1` | `https://api.z.ai/api/coding/paas/v4` |
+| `MAKER_API_MODEL` | Default fallback model | `gemini-3-pro-preview` | `GLM-4-Plus` |
 | `MAKER_JUDGE_MODEL` | Judge model | `gpt-4` | `GLM-4.6` |
 | `MAKER_VOTER_MODEL` | Voters model | `gpt-3.5-turbo` | `GLM-4.5-air` |
 | `MAKER_K` | Voting margin | `3` | `3` |
-| `MAKER_MAX_TOKENS` | Limit for red-flag | `750` | `750` |
-| `MAKER_MAX_ROUNDS` | Maximum rounds | `50` | `50` |
-| `PORT` | API server port | `3000` | `3000` |
+| `MAKER_MAX_TOKENS` | Limit for red-flag | `16000` | `16000` |
+| `MAKER_MAX_ROUNDS` | Maximum rounds | `10` | `10` |
+| `MAKER_API_PORT` | API server port | `8338` | `8338` |
+| `MAKER_FAST_MODE` | Enable fast mode for simple prompts | `true` | `true` |
+| `MAKER_INCLUDE_REPORT` | Include technical report in response | `false` | `true` |
+| `MAKER_SIMPLE_PROMPT_MAX_LENGTH` | Char limit for fast mode | `50` | `50` |
+| `MAKER_MCP_MODE` | Force MCP mode | `false` | `true` |
 
 ## 🔌 MCP Server Mode
 
@@ -148,13 +154,13 @@ MAKER-Council can run as an HTTP server exposing an OpenAI-compatible API. This 
 ```bash
 # Start the API server
 npm run serve
-# The server will be available at http://localhost:3000
+# The server will be available at http://localhost:8338
 ```
 
 ### Configuration & Usage
 
 Configure your client with:
-- **Base URL**: `http://localhost:3000/v1`
+- **Base URL**: `http://localhost:8338/v1`
 - **Model**: `maker-council-v1` (ignored)
 - **API Key**: Any value (ignored)
 
