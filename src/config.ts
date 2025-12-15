@@ -5,6 +5,8 @@
  * configurations from environment variables.
  */
 import dotenv from "dotenv";
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Load variables from .env file into process.env
 const result = dotenv.config();
@@ -132,43 +134,31 @@ function getBooleanEnv(envVar: string, defaultValue: boolean): boolean {
 }
 
 /**
- * Parse MCP servers from environment variable.
- * Format: MAKER_MCP_SERVERS='[{"name":"server1","command":"npx","args":["-y","@some/mcp-server"]}]'
- * Or a simpler format: MAKER_MCP_SERVERS='server1:npx:-y:@some/mcp-server;server2:node:./server.js'
+ * Loads MCP server configurations from the `maker-mcps/mcp.json` manifest.
+ * @returns An array of MCP server definitions.
  */
-function parseMcpServers(): McpServerDefinition[] {
-  const serversEnv = process.env.MAKER_MCP_SERVERS;
-  if (!serversEnv) {
+function loadMcpManifest(): McpServerDefinition[] {
+  const manifestPath = path.resolve(process.cwd(), 'maker-mcps', 'mcp.json');
+
+  if (!fs.existsSync(manifestPath)) {
+    console.log('[CONFIG] MCP manifest not found at:', manifestPath);
     return [];
   }
 
   try {
-    // Try JSON format first
-    if (serversEnv.trim().startsWith('[')) {
-      return JSON.parse(serversEnv) as McpServerDefinition[];
+    const fileContent = fs.readFileSync(manifestPath, 'utf-8');
+    const manifest = JSON.parse(fileContent);
+
+    if (!manifest.mcpServers || !Array.isArray(manifest.mcpServers)) {
+      console.error('[CONFIG] Invalid MCP manifest: "mcpServers" array is missing or not an array.');
+      return [];
     }
 
-    // Simple format: name:command:arg1:arg2;name2:command2:arg1
-    const servers: McpServerDefinition[] = [];
-    const serverDefs = serversEnv.split(';').filter(s => s.trim());
+    const enabledServers = manifest.mcpServers.filter((server: any) => server.enabled !== false);
     
-    for (const def of serverDefs) {
-      const parts = def.split(':').map(p => p.trim());
-      if (parts.length >= 2) {
-        const [name, command, ...args] = parts;
-        servers.push({
-          name,
-          command,
-          args,
-          timeout: getNumericEnv('MAKER_MCP_TIMEOUT', 30000),
-          autoReconnect: getBooleanEnv('MAKER_MCP_AUTO_RECONNECT', false),
-        });
-      }
-    }
-    
-    return servers;
-  } catch (err) {
-    console.error('Failed to parse MAKER_MCP_SERVERS:', err);
+    return enabledServers as McpServerDefinition[];
+  } catch (error) {
+    console.error('[CONFIG] Failed to read or parse MCP manifest:', error);
     return [];
   }
 }
@@ -208,7 +198,7 @@ function createConfig(): Config {
     simplePromptMaxLength: getNumericEnv("MAKER_SIMPLE_PROMPT_MAX_LENGTH", 50),
     mcpClient: {
       enabled: getBooleanEnv("MAKER_MCP_CLIENT_ENABLED", false),
-      servers: parseMcpServers(),
+      servers: loadMcpManifest(),
       defaultTimeout: getNumericEnv("MAKER_MCP_TIMEOUT", 30000),
       maxAgentIterations: getNumericEnv("MAKER_MCP_MAX_ITERATIONS", 10),
     },
