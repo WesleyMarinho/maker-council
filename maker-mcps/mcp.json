@@ -24,7 +24,7 @@
         "@modelcontextprotocol/server-filesystem",
         "./"
       ],
-      "enabled": false,
+      "enabled": true,
       "provider": "local"
     }
   ]
