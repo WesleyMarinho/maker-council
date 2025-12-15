@@ -14,7 +14,7 @@
         "."
       ],
       "enabled": true,
-      "provider": "roocode"
+      "provider": "github"
     },
     {
       "name": "filesystem-access",
