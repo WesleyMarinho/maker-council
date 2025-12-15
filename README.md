@@ -1,6 +1,6 @@
 # MAKER-Council
 
-<img src="logo.svg" alt="MAKER-Council Logo" width="200"/>
+<p align="center"><img src="banner.svg" alt="MAKER-Council Banner"/></p>
 <div align="center">
   <br />
   <p>

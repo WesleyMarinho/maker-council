@@ -1,0 +1,57 @@
+<svg width="800" height="200" viewBox="0 0 800 200" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .title {
+      font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      font-size: 48px;
+      font-weight: 600;
+      fill: url(#titleGrad);
+    }
+    .subtitle {
+      font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      font-size: 16px;
+      font-weight: 300;
+      fill: #a9a9b3;
+    }
+  </style>
+
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#161b22;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0d1117;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#58A6FF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#A371F7;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3.5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="200" fill="url(#bgGrad)" />
+
+  <!-- Abstract Network Glow -->
+  <g opacity="0.4" filter="url(#glow)">
+    <path d="M 400 0 L 800 200" stroke="#58A6FF" stroke-width="0.5" />
+    <path d="M 500 0 L 650 200" stroke="#A371F7" stroke-width="0.5" />
+    <path d="M 600 0 L 500 200" stroke="#58A6FF" stroke-width="0.5" />
+    <path d="M 700 -50 L 400 250" stroke="#A371F7" stroke-width="0.5" />
+    <path d="M 800 50 L 600 250" stroke="#58A6FF" stroke-width="0.5" />
+  </g>
+  
+  <!-- Logo Icon -->
+  <g transform="translate(40, 75)">
+    <circle cx="25" cy="25" r="25" fill="url(#titleGrad)" />
+    <path d="M 15 35 L 15 15 L 21 25 L 27 15 L 33 25 L 39 15 L 39 35" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Text -->
+  <text x="110" y="105" class="title">MAKER-Council</text>
+  <text x="112" y="130" class="subtitle">Massively Decomposed Agentic Processes</text>
+
+</svg>
