@@ -222,13 +222,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 let transport: SSEServerTransport | null = null;
 
 app.get('/sse', async (req, res) => {
-  console.log('[MCP] New SSE connection');
+  console.error('[MCP] New SSE connection');
   transport = new SSEServerTransport('/message', res);
   await server.connect(transport);
 
   // Keep connection alive
   res.on('close', () => {
-    console.log('[MCP] SSE connection closed');
+    console.error('[MCP] SSE connection closed');
     transport = null;
   });
 });
@@ -244,16 +244,16 @@ app.post('/message', async (req, res) => {
 // Main endpoint - Chat Completions
 app.post('/v1/chat/completions', async (req, res) => {
   try {
-    console.log('\n[DEBUG] ========== NEW REQUEST ==========');
-    console.log('[DEBUG] Request body:', JSON.stringify(req.body, null, 2));
-    console.log('[DEBUG] Messages array:', JSON.stringify(req.body.messages, null, 2));
-    console.log('[DEBUG] Stream mode:', req.body.stream);
+    console.error('\n[DEBUG] ========== NEW REQUEST ==========');
+    console.error('[DEBUG] Request body:', JSON.stringify(req.body, null, 2));
+    console.error('[DEBUG] Messages array:', JSON.stringify(req.body.messages, null, 2));
+    console.error('[DEBUG] Stream mode:', req.body.stream);
 
     // Validate request
     const openaiReq: OpenAIRequest = req.body;
 
     if (!openaiReq.messages || !Array.isArray(openaiReq.messages)) {
-      console.log('[DEBUG] ERROR: messages is not a valid array');
+      console.error('[DEBUG] ERROR: messages is not a valid array');
       return res.status(400).json({
         error: {
           message: 'The "messages" field is required and must be an array',
@@ -265,8 +265,8 @@ app.post('/v1/chat/completions', async (req, res) => {
 
     // Extract last user message
     const userMessage = extractLastUserMessage(openaiReq.messages);
-    console.log('[DEBUG] Extracted userMessage:', userMessage);
-    console.log('[DEBUG] userMessage length:', userMessage.length);
+    console.error('[DEBUG] Extracted userMessage:', userMessage);
+    console.error('[DEBUG] userMessage length:', userMessage.length);
 
     // Build request for MAKER-Council
     const queryRequest: QueryRequest = {
@@ -277,7 +277,7 @@ app.post('/v1/chat/completions', async (req, res) => {
         k: openaiReq.maker_k
       }
     };
-    console.log('[DEBUG] QueryRequest constructed:', JSON.stringify(queryRequest, null, 2));
+    console.error('[DEBUG] QueryRequest constructed:', JSON.stringify(queryRequest, null, 2));
 
     // Add context if there are previous messages
     if (openaiReq.messages.length > 1) {
@@ -287,17 +287,17 @@ app.post('/v1/chat/completions', async (req, res) => {
           content: msg.content
         }))
       };
-      console.log('[DEBUG] Context added with', openaiReq.messages.length, 'messages');
+      console.error('[DEBUG] Context added with', openaiReq.messages.length, 'messages');
     }
 
     // Process with MAKER-Council using the imported configuration object
-    console.log('[DEBUG] Calling handleQuery...');
+    console.error('[DEBUG] Calling handleQuery...');
     const response: QueryResponse = await handleQuery(queryRequest);
-    console.log('[DEBUG] Response from handleQuery:', JSON.stringify(response, null, 2).substring(0, 500) + '...');
+    console.error('[DEBUG] Response from handleQuery:', JSON.stringify(response, null, 2).substring(0, 500) + '...');
 
     // Check if the client requested streaming
     if (openaiReq.stream === true) {
-      console.log('[DEBUG] STREAMING mode enabled');
+      console.error('[DEBUG] STREAMING mode enabled');
       // Configure headers for Server-Sent Events (SSE)
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
@@ -313,11 +313,11 @@ app.post('/v1/chat/completions', async (req, res) => {
         ? response.result
         : JSON.stringify(response.result, null, 2);
 
-      console.log('[DEBUG] Content for streaming (first 200 chars):', content.substring(0, 200));
-      console.log('[DEBUG] Total content length:', content.length);
+      console.error('[DEBUG] Content for streaming (first 200 chars):', content.substring(0, 200));
+      console.error('[DEBUG] Total content length:', content.length);
 
       // Send initial chunk with role
-      console.log('[DEBUG] Sending initial chunk...');
+      console.error('[DEBUG] Sending initial chunk...');
       sendSSEChunk(res, {
         id,
         object: 'chat.completion.chunk',
@@ -349,7 +349,7 @@ app.post('/v1/chat/completions', async (req, res) => {
       }
 
       // Send final chunk with finish_reason
-      console.log('[DEBUG] Sending final chunk...');
+      console.error('[DEBUG] Sending final chunk...');
       sendSSEChunk(res, {
         id,
         object: 'chat.completion.chunk',
@@ -363,13 +363,13 @@ app.post('/v1/chat/completions', async (req, res) => {
       });
 
       // Send the [DONE] marker
-      console.log('[DEBUG] Sending [DONE]...');
+      console.error('[DEBUG] Sending [DONE]...');
       res.write('data: [DONE]\n\n');
       res.end();
-      console.log('[DEBUG] Streaming finished successfully');
+      console.error('[DEBUG] Streaming finished successfully');
 
     } else {
-      console.log('[DEBUG] NON-STREAMING mode');
+      console.error('[DEBUG] NON-STREAMING mode');
       // Non-streaming response (original logic)
       const openaiResponse: OpenAIResponse = {
         id: generateOpenAIId(),
@@ -496,42 +496,42 @@ async function startServer() {
   await initializeLogic();
 
   app.listen(PORT, () => {
-    console.log('\n' + '='.repeat(70));
-    console.log('🚀 MAKER-Council API Server');
-    console.log('='.repeat(70));
+    console.error('\n' + '='.repeat(70));
+    console.error('🚀 MAKER-Council API Server');
+    console.error('='.repeat(70));
 
-    console.log('\n📍 Endpoints:');
-    console.log(`   - Chat Completions: http://localhost:${PORT}/v1/chat/completions`);
-    console.log(`   - Health Check:     http://localhost:${PORT}/health`);
-    console.log(`   - Models List:      http://localhost:${PORT}/v1/models`);
+    console.error('\n📍 Endpoints:');
+    console.error(`   - Chat Completions: http://localhost:${PORT}/v1/chat/completions`);
+    console.error(`   - Health Check:     http://localhost:${PORT}/health`);
+    console.error(`   - Models List:      http://localhost:${PORT}/v1/models`);
 
-    console.log('\n⚙️  LLM Provider Configuration:');
-    console.log(`   - API URL:          ${config.apiUrl}`);
-    console.log(`   - API Key:          ${config.apiKey ? '***' + config.apiKey.slice(-4) : '(not set)'}`);
-    console.log(`   - Default Model:    ${config.judgeModel}`);
+    console.error('\n⚙️  LLM Provider Configuration:');
+    console.error(`   - API URL:          ${config.apiUrl}`);
+    console.error(`   - API Key:          ${config.apiKey ? '***' + config.apiKey.slice(-4) : '(not set)'}`);
+    console.error(`   - Default Model:    ${config.judgeModel}`);
 
-    console.log('\n🗳️  MAKER-Council Settings:');
-    console.log(`   - Judge Model:      ${config.judgeModel}`);
-    console.log(`   - Voter Model:      ${config.voterModel}`);
-    console.log(`   - K (voting margin): ${config.k}`);
-    console.log(`   - Max Rounds:       ${config.maxRounds}`);
-    console.log(`   - Max Tokens:       ${config.maxTokens}`);
+    console.error('\n🗳️  MAKER-Council Settings:');
+    console.error(`   - Judge Model:      ${config.judgeModel}`);
+    console.error(`   - Voter Model:      ${config.voterModel}`);
+    console.error(`   - K (voting margin): ${config.k}`);
+    console.error(`   - Max Rounds:       ${config.maxRounds}`);
+    console.error(`   - Max Tokens:       ${config.maxTokens}`);
 
-    console.log('\n⚡ Performance Settings:');
-    console.log(`   - Fast Mode:        ${config.fastMode ? 'ENABLED' : 'DISABLED'}`);
-    console.log(`   - Simple Prompt Max: ${config.simplePromptMaxLength} chars`);
-    console.log(`   - Include Report:   ${config.includeReport ? 'YES' : 'NO'}`);
+    console.error('\n⚡ Performance Settings:');
+    console.error(`   - Fast Mode:        ${config.fastMode ? 'ENABLED' : 'DISABLED'}`);
+    console.error(`   - Simple Prompt Max: ${config.simplePromptMaxLength} chars`);
+    console.error(`   - Include Report:   ${config.includeReport ? 'YES' : 'NO'}`);
 
-    console.log('\n🔌 MCP Client Configuration:');
-    console.log(`   - Enabled:          ${config.mcpClient.enabled ? 'YES' : 'NO'}`);
-    console.log(`   - Servers:          ${config.mcpClient.servers.length} configured`);
+    console.error('\n🔌 MCP Client Configuration:');
+    console.error(`   - Enabled:          ${config.mcpClient.enabled ? 'YES' : 'NO'}`);
+    console.error(`   - Servers:          ${config.mcpClient.servers.length} configured`);
     if (config.mcpClient.servers.length > 0) {
       config.mcpClient.servers.forEach(s => {
-        console.log(`     • ${s.name}: ${s.command} ${s.args.join(' ')}`);
+        console.error(`     • ${s.name}: ${s.command} ${s.args.join(' ')}`);
       });
     }
-    console.log(`   - Default Timeout:  ${config.mcpClient.defaultTimeout}ms`);
-    console.log(`   - Max Iterations:   ${config.mcpClient.maxAgentIterations}`);
+    console.error(`   - Default Timeout:  ${config.mcpClient.defaultTimeout}ms`);
+    console.error(`   - Max Iterations:   ${config.mcpClient.maxAgentIterations}`);
 
     // Basic infinite loop prevention
     // Checks if the API URL points to localhost with the same port as this server
@@ -541,24 +541,24 @@ async function startServer() {
       const isSamePort = url.port === String(PORT) || (url.port === '' && PORT === 80);
 
       if (isLocalhost && isSamePort) {
-        console.log('\n' + '!'.repeat(70));
+        console.error('\n' + '!'.repeat(70));
         console.error('❌ CRITICAL ERROR: LLM Provider URL points to this server!');
         console.error('   This would cause an infinite loop.');
         console.error('   Please change MAKER_BASE_URL in your .env file.');
         console.error('   It must point to an external provider or a different port.');
-        console.log('!'.repeat(70));
+        console.error('!'.repeat(70));
         process.exit(1);
       }
     } catch (e) {
       // Ignore URL parsing errors, let the request fail naturally later
     }
 
-    console.log('\n' + '-'.repeat(70));
-    console.log('💡 Test with curl:');
-    console.log(`curl -X POST http://localhost:${PORT}/v1/chat/completions \\`);
-    console.log('  -H "Content-Type: application/json" \\');
-    console.log('  -d \'{"messages": [{"role": "user", "content": "Hello!"}]}\'');
-    console.log('-'.repeat(70) + '\n');
+    console.error('\n' + '-'.repeat(70));
+    console.error('💡 Test with curl:');
+    console.error(`curl -X POST http://localhost:${PORT}/v1/chat/completions \\`);
+    console.error('  -H "Content-Type: application/json" \\');
+    console.error('  -d \'{"messages": [{"role": "user", "content": "Hello!"}]}\'');
+    console.error('-'.repeat(70) + '\n');
   });
 }
 
@@ -566,11 +566,11 @@ startServer();
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('\n🛑 SIGTERM received, shutting down server...');
+  console.error('\n🛑 SIGTERM received, shutting down server...');
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
-  console.log('\n🛑 SIGINT received, shutting down server...');
+  console.error('\n🛑 SIGINT received, shutting down server...');
   process.exit(0);
 });

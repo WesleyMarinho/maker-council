@@ -264,6 +264,7 @@ async function main() {
   // Start MCP server
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  // Only log to stderr in MCP mode to keep stdout clean for JSON-RPC
   console.error("MAKER-Council MCP Server started");
 }
 

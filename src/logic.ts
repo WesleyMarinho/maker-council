@@ -22,12 +22,12 @@ import { OpenAITool } from './mcp-client/types.js';
 let availableTools: OpenAITool[] = [];
 
 export async function initializeLogic() {
-  console.log('[LOGIC] Initializing logic and loading tools...');
+  console.error('[LOGIC] Initializing logic and loading tools...');
   const manager = await initializeMcpClient();
   const externalTools = manager ? manager.getToolsAsOpenAI() : [];
   availableTools = [...internalTools, ...externalTools];
-  console.log(`[LOGIC] Initialization complete. ${availableTools.length} tools available.`);
-  availableTools.forEach(tool => console.log(`       - ${tool.function.name}`));
+  console.error(`[LOGIC] Initialization complete. ${availableTools.length} tools available.`);
+  availableTools.forEach(tool => console.error(`       - ${tool.function.name}`));
 }
 
 // ============================================================================
@@ -461,7 +461,7 @@ function isMcpMetaQuestion(prompt: string): boolean {
   const hasMetaKeyword = metaKeywords.some(keyword => normalized.includes(keyword));
 
   const result = hasMcpKeyword && hasMetaKeyword;
-  console.log(`[LOGIC] isMcpMetaQuestion: mcp=${hasMcpKeyword}, meta=${hasMetaKeyword}, result=${result}`);
+  console.error(`[LOGIC] isMcpMetaQuestion: mcp=${hasMcpKeyword}, meta=${hasMetaKeyword}, result=${result}`);
 
   return result;
 }
@@ -517,7 +517,7 @@ export async function handleQuery(request: QueryRequest): Promise<QueryResponse>
 
   // Fast path for simple greetings - bypass tool dispatcher
   if (isSimpleGreeting(request.prompt)) {
-    console.log('[LOGIC] Simple greeting detected. Bypassing tool dispatcher.');
+    console.error('[LOGIC] Simple greeting detected. Bypassing tool dispatcher.');
     const totalTime = (Date.now() - startTime) / 1000;
     return {
       result: "Hello! How can I help you today?",
@@ -535,7 +535,7 @@ export async function handleQuery(request: QueryRequest): Promise<QueryResponse>
 
   // Fast path for MCP meta questions
   if (isMcpMetaQuestion(request.prompt)) {
-    console.log('[LOGIC] MCP meta question detected. Providing direct answer.');
+    console.error('[LOGIC] MCP meta question detected. Providing direct answer.');
     const totalTime = (Date.now() - startTime) / 1000;
     const mcpAnswer = `A integração MCP (Model Context Protocol) do MAKER-Council funciona da seguinte forma:
 
@@ -572,8 +572,8 @@ Para adicionar mais servidores MCP, edite o arquivo \`maker-mcps/mcp.json\`.`;
     };
   }
 
-  console.log('[LOGIC] New handleQuery received request:', request.prompt);
-  console.log(`[LOGIC] ${availableTools.length} tools are available for routing.`);
+  console.error('[LOGIC] New handleQuery received request:', request.prompt);
+  console.error(`[LOGIC] ${availableTools.length} tools are available for routing.`);
 
   // --- RE-ACT AGENT LOOP ---
   // Determine if we have external MCP tools available
@@ -628,7 +628,7 @@ Para adicionar mais servidores MCP, edite o arquivo \`maker-mcps/mcp.json\`.`;
 
   while (iterations < maxIterations) {
     iterations++;
-    console.log(`[LOGIC] Agent Loop Iteration ${iterations}/${maxIterations}`);
+    console.error(`[LOGIC] Agent Loop Iteration ${iterations}/${maxIterations}`);
 
     const client = getClient();
     const response = await client.chat.completions.create({
@@ -644,7 +644,7 @@ Para adicionar mais servidores MCP, edite o arquivo \`maker-mcps/mcp.json\`.`;
 
     // If the model replies with text (no tool call), we treat it as the final answer
     if (!toolCall) {
-      console.log('[LOGIC] Agent returned final text response.');
+      console.error('[LOGIC] Agent returned final text response.');
       finalResult = message.content;
       break;
     }
@@ -667,7 +667,7 @@ Para adicionar mais servidores MCP, edite o arquivo \`maker-mcps/mcp.json\`.`;
       continue;
     }
 
-    console.log(`[LOGIC] Agent calls tool: ${toolName}`, args);
+    console.error(`[LOGIC] Agent calls tool: ${toolName}`, args);
 
     // Arg Fixes
     if (toolName.includes('get_symbols_overview') && args.file_path && !args.relative_path) {
@@ -723,7 +723,7 @@ Para adicionar mais servidores MCP, edite o arquivo \`maker-mcps/mcp.json\`.`;
       toolOutput = `Error execution exception: ${String(error)}`;
     }
 
-    console.log(`[LOGIC] Tool output length: ${toolOutput.length}`);
+    console.error(`[LOGIC] Tool output length: ${toolOutput.length}`);
 
     // Add tool output to history so agent can see it
     messages.push({
@@ -811,7 +811,7 @@ async function internalHandleDecomposeTask(task: string): Promise<string> {
 }
 
 async function executeInternalTool(toolName: string, args: any): Promise<any> {
-  console.log(`[LOGIC] Executing internal tool: ${toolName}`);
+  console.error(`[LOGIC] Executing internal tool: ${toolName}`);
   switch (toolName) {
     case 'consult_council':
       return internalHandleConsultCouncil(args.query, args.num_voters, args.k);

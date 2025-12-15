@@ -9,12 +9,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 // Load variables from .env file into process.env
-const result = dotenv.config();
-
-// Only log dotenv errors, not success (reduce noise in production)
-if (result.error) {
-  console.error('[CONFIG] Warning: dotenv.config() failed:', result.error.message);
-  console.error('[CONFIG] Environment variables may not be loaded from .env file');
+// Skip dotenv in MCP mode since env vars are passed directly by the MCP client
+if (process.env.MAKER_MCP_MODE !== 'true') {
+  const result = dotenv.config();
+  
+  // Only log dotenv errors, not success (reduce noise in production)
+  if (result.error) {
+    console.error('[CONFIG] Warning: dotenv.config() failed:', result.error.message);
+    console.error('[CONFIG] Environment variables may not be loaded from .env file');
+  }
 }
 
 /**
@@ -144,7 +147,7 @@ function loadMcpManifest(): McpServerDefinition[] {
   const manifestPath = path.resolve(process.cwd(), 'maker-mcps', 'mcp.json');
 
   if (!fs.existsSync(manifestPath)) {
-    console.log('[CONFIG] MCP manifest not found at:', manifestPath);
+    console.error('[CONFIG] MCP manifest not found at:', manifestPath);
     return [];
   }
 
