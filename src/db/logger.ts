@@ -45,6 +45,7 @@ export interface ToolCallLog {
 
 export class Logger {
   private db: Database.Database;
+  private _dbPath: string = '';
   private static instance: Logger;
 
   private constructor() {
@@ -69,6 +70,7 @@ export class Logger {
             fs.mkdirSync(fallbackDir, { recursive: true });
         }
         const dbPath = path.join(fallbackDir, 'maker_monitoring.db');
+        this._dbPath = dbPath;
         this.db = new Database(dbPath);
         this.initSchema();
         return;
@@ -76,6 +78,7 @@ export class Logger {
     }
 
     const dbPath = path.join(dbDir, 'maker_monitoring.db');
+    this._dbPath = dbPath;
     console.error(`[MAKER-DB] Database path: ${dbPath}`);
     
     try {
@@ -95,9 +98,18 @@ export class Logger {
     return Logger.instance;
   }
 
+  public getDbPath(): string {
+    return this._dbPath;
+  }
+
   private initSchema() {
     // Enable WAL mode for better concurrency
     this.db.pragma('journal_mode = WAL');
+    
+    // Set busy timeout to prevent locking issues
+    this.db.pragma('busy_timeout = 5000');
+    // Ensure synchronous mode is NORMAL (default for WAL) or FULL
+    this.db.pragma('synchronous = NORMAL');
 
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS requests (

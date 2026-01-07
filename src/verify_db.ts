@@ -22,6 +22,8 @@ async function main() {
     } else if (command === 'count') {
         const stats = logger.getStats();
         console.log(`Total Requests: ${stats.total}`);
+    } else if (command === 'path') {
+        console.log(`Logger DB Path: ${logger.getDbPath()}`);
     } else if (command === 'list') {
         const requests = logger.getRecentRequests(10) as any[];
         console.log('Recent Requests:');
@@ -45,7 +47,7 @@ async function main() {
              console.log('Database file DOES NOT exist.');
         }
     } else {
-        console.log('Usage: tsx src/verify_db.ts [clear|count|list|checkpoint|check_connection]');
+        console.log('Usage: tsx src/verify_db.ts [clear|count|list|checkpoint|check_connection|path]');
     }
 }
 
