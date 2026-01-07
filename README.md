@@ -1,10 +1,10 @@
-# MAKER-Council
+# MAKER-Council MCP Server
 
 <p align="center"><img src="banner.svg" alt="MAKER-Council Banner"/></p>
 <div align="center">
   <br />
   <p>
-    An intelligent, tool-dispatching API server that uses a council of LLM agents to perform complex tasks, based on the MAKER paper methodology.
+    A Model Context Protocol (MCP) server that implements the MAKER methodology for complex task execution using consensus and voting.
   </p>
   <br />
 </div>
@@ -14,192 +14,149 @@
 
 ---
 
-**MAKER-Council** is an advanced API server that acts as an intelligent dispatcher. It interprets user prompts and routes them to the most appropriate tool from a unified registry, which includes both powerful internal capabilities and external tools connected via the Model-Context Protocol (MCP).
+**MAKER-Council** is a pure MCP server that provides advanced decision-making tools to your AI assistant. It implements the concepts from the "MAKER: Massively Decomposed Agentic Processes" paper, allowing for high-quality, consensus-driven responses through voting and judging mechanisms.
 
 ## ✨ Key Features
 
-- **Intelligent Tool Dispatcher**: Uses a powerful LLM to analyze user prompts and automatically select the best tool for the job, similar to OpenAI's Function Calling.
-- **Extensible via MCPs**: Easily add new capabilities (e.g., file system access, git operations, web search) by configuring external MCP servers in a simple JSON manifest.
-- **Robust Decision Making**: Implements core concepts from the MAKER paper, such as `consult_council` (voting + judging) and `solve_with_voting` for high-quality, consensus-driven responses.
-- **OpenAI-Compatible API**: Drop-in replacement for any client compatible with the OpenAI API, making integration seamless.
-- **Streaming Support**: Provides real-time, streamed responses for a better user experience.
+- **MAKER Methodology Tools**: Provides specialized tools like `consult_council` and `solve_with_voting` to leverage multiple internal micro-agents for better accuracy.
+- **Task Decomposition**: Includes `decompose_task` to break down complex objectives into manageable steps.
+- **Unified Query Interface**: Exposes a smart `query` tool that automatically routes requests to the appropriate internal strategy.
+- **Pure MCP Implementation**: communicating entirely over stdio, making it compatible with any MCP client (Claude Desktop, Cline, etc.).
 
 ## 🚀 Getting Started
 
 ### 1. Installation
 
-Clone the repository and install the dependencies:
+Clone the repository and install dependencies:
 
 ```bash
 git clone https://github.com/your-repo/maker-council.git
 cd maker-council
 npm install
+npm run build
 ```
 
 ### 2. Configuration
 
-Configuration is handled through a `.env` file and a JSON manifest for external tools.
-
-#### a) Environment Variables
-
-Create a `.env` file in the root of the project by copying the `.env.example`. At a minimum, you must provide your LLM provider's API key.
-
-##### Core Settings
-
-| Variable | Description | Default | Required |
-|----------|-------------|---------|:--------:|
-| `MAKER_API_KEY` | API key for the LLM provider. Essential for authentication. | - | ✅ |
-| `MAKER_API_URL` | Base URL for the LLM API. Takes precedence over `MAKER_BASE_URL`. | `https://api.openai.com/v1` | |
-| `MAKER_BASE_URL` | Alternative base URL for the LLM API (fallback). | `https://api.openai.com/v1` | |
-| `MAKER_API_PORT` | Port on which the API server listens. | `8338` | |
-
-##### Model Configuration
-
-| Variable | Description | Default | Required |
-|----------|-------------|---------|:--------:|
-| `MAKER_API_MODEL` | Default fallback model for all operations. | `gpt-4o-mini` | |
-| `MAKER_JUDGE_MODEL` | Model used by the Senior Judge for routing and complex reasoning. | Falls back to `MAKER_API_MODEL` | |
-| `MAKER_VOTER_MODEL` | Model used by Voters/Microagents for generating proposals. | Falls back to `MAKER_API_MODEL` | |
-
-##### MAKER Algorithm Settings
-
-| Variable | Description | Default | Required |
-|----------|-------------|---------|:--------:|
-| `MAKER_K` | Voting margin 'k' for the first-to-ahead-by-k algorithm. | `3` | |
-| `MAKER_MAX_TOKENS` | Maximum tokens for LLM-generated responses (used for red-flagging). | `16000` | |
-| `MAKER_MAX_ROUNDS` | Maximum voting rounds before forcing a decision. | `10` | |
-
-##### Behavior & Performance
-
-| Variable | Description | Default | Required |
-|----------|-------------|---------|:--------:|
-| `MAKER_FAST_MODE` | Enable fast mode for simple prompts (greetings, short questions). | `true` | |
-| `MAKER_SIMPLE_PROMPT_MAX_LENGTH` | Character limit to consider a prompt as "simple" for fast mode. | `50` | |
-| `MAKER_INCLUDE_REPORT` | Include full technical report in response. If `false`, returns only the decision. | `false` | |
-| `MAKER_MCP_MODE` | Force MCP mode (stdin/stdout communication instead of HTTP server). | `false` | |
-
-##### MCP Client Configuration
-
-| Variable | Description | Default | Required |
-|----------|-------------|---------|:--------:|
-| `MAKER_MCP_CLIENT_ENABLED` | Enable MCP client functionality to connect to external tools. | `false` | |
-| `MAKER_MCP_TIMEOUT` | Default timeout for tool execution (milliseconds). | `30000` | |
-| `MAKER_MCP_MAX_ITERATIONS` | Maximum iterations in the agent loop. | `10` | |
-
-##### Example `.env` File
+Create a `.env` file in the root directory. You must provide an API key for the LLM provider (OpenAI by default).
 
 ```bash
-# Required
-MAKER_API_KEY="your-llm-provider-api-key"
-
-# LLM Provider (optional - defaults to OpenAI)
-MAKER_API_URL="https://api.openai.com/v1"
-
-# Models (optional - uses defaults if not set)
-MAKER_JUDGE_MODEL="gpt-4-turbo"
-MAKER_VOTER_MODEL="gpt-3.5-turbo"
-
-# Algorithm tuning (optional)
-MAKER_K=3
-MAKER_MAX_ROUNDS=10
-
-# Enable external tools via MCP
-MAKER_MCP_CLIENT_ENABLED=true
+cp .env.example .env
 ```
 
-#### b) External Tools (MCPs)
+#### Environment Variables
 
-External tools are registered in the `maker-mcps/mcp.json` file. This allows you to extend the council's capabilities.
+| Variable | Description | Default | Required |
+|----------|-------------|---------|:--------:|
+| `MAKER_API_KEY` | API key for the LLM provider. | - | ✅ |
+| `MAKER_API_URL` | Base URL for the LLM API. | `https://api.openai.com/v1` | |
+| `MAKER_API_MODEL` | Default model for operations. | `gpt-4o-mini` | |
+| `MAKER_JUDGE_MODEL` | Model for the Senior Judge agent. | `gpt-4o` | |
+| `MAKER_VOTER_MODEL` | Model for Voter/Microagent agents. | `gpt-4o-mini` | |
+| `MAKER_K` | Voting margin 'k' for consensus. | `3` | |
+| `MAKER_MAX_ROUNDS` | Max voting rounds before forcing decision. | `10` | |
+| `DASHBOARD_PORT` | Port for the monitoring dashboard. | `3000` | |
 
-*Example `maker-mcps/mcp.json`:*
+### 3. Usage with MCP Clients
+
+To use MAKER-Council with your favorite MCP client, add it to your configuration file.
+
+#### Claude Desktop
+
+Edit `%APPDATA%\Claude\claude_desktop_config.json` (Windows) or `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
+
 ```json
 {
-  "mcpServers": [
-    {
-      "name": "serena",
-      "command": "uvx",
-      "args": ["serena", "start-mcp-server"],
-      "enabled": true,
-      "provider": "roocode"
-    },
-    {
-      "name": "filesystem",
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "./"],
-      "enabled": false
+  "mcpServers": {
+    "maker-council": {
+      "command": "node",
+      "args": [
+        "path/to/maker-council/dist/index.js"
+      ],
+      "env": {
+        "MAKER_API_KEY": "sk-..."
+      }
     }
-  ]
+  }
 }
 ```
 
-### 3. Running the Server
+#### Cline
 
-Build the project and start the server:
+Add the server in the MCP Servers tab:
+- **Name**: maker-council
+- **Command**: `node`
+- **Args**: `path/to/maker-council/dist/index.js`
+- **Env**: Add your `MAKER_API_KEY`
 
-```bash
-npm run build
-npm run serve
-```
-The server will be available at `http://localhost:8338`.
+## 📊 Monitoring Dashboard
 
-## ⚙️ Usage
+The server includes a real-time web dashboard to monitor requests, voting consensus, and agent performance.
 
-Interact with the server using any OpenAI-compatible client. The server intelligently dispatches your prompt to the best available tool.
+### Running the Dashboard
 
-**Example: Using `curl` to analyze a file (will be routed to the `serena` MCP)**
-
-```bash
-curl --location 'http://localhost:8338/v1/chat/completions' \
---header 'Content-Type: application/json' \
---data '{
-  "messages": [{
-    "role": "user",
-    "content": "Analyze the file structure of `src/logic.ts` and list its main exports."
-  }]
-}'
-```
-
-**Example: Using `curl` for a complex decision (will be routed to the internal `consult_council` tool)**
+To start the dashboard server:
 
 ```bash
-curl --location 'http://localhost:8338/v1/chat/completions' \
---header 'Content-Type: application/json' \
---data '{
-  "messages": [{
-    "role": "user",
-    "content": "What is the best architecture for a real-time notification system: WebSockets or Server-Sent Events? Justify the choice."
-  }]
-}'
+npm run dashboard
 ```
 
-## 🧠 Core Concepts
+Then open **[http://localhost:3000](http://localhost:3000)** in your browser.
 
-### Internal Tools
+### Features
+- **Real-time Stats**: Track total requests, error rates, and latency.
+- **Request Traces**: See step-by-step execution of MAKER algorithms (Voters, Judge, etc.).
+- **Deep Debugging**: Inspect full JSON logs, prompts, and tool inputs/outputs.
 
-MAKER-Council comes with powerful built-in tools inspired by the MAKER paper:
+> **Note**: The dashboard connects to the local SQLite database. Ensure the main MCP server is running or has been run to generate data.
 
-- **`consult_council`**: The primary tool for complex problems. It gathers proposals from multiple "voter" agents and uses a "judge" agent to synthesize the best possible answer.
-- **`solve_with_voting`**: A faster version that relies only on consensus voting. Ideal for objective questions with a clear-cut answer.
-- **`decompose_task`**: Breaks down a large, complex task into a sequence of smaller, actionable steps.
+## 🛠️ Tools Reference
 
-### Intelligent Dispatcher
+This server exposes the following tools:
 
-You no longer need to specify which tool to use. The new logic in `handleQuery` automatically presents your prompt and the list of all available tools (both internal and external) to a router LLM, which then decides the best course of action.
+### 1. `query` (Recommended)
+The unified entry point. It automatically routes your prompt to the most appropriate internal strategy based on intent or analysis.
+
+**Arguments:**
+- `prompt` (string): The main query or task.
+- `context` (object, optional): Additional context (code, history, etc.).
+- `intent` (string, optional): Explicit intent ('decision', 'validation', 'decomposition').
+- `config` (object, optional): Overrides for voters or 'k' value.
+
+### 2. `consult_council`
+Uses the full MAKER algorithm. Multiple micro-agents (voters) generate proposals, and a senior judge synthesizes the best answer using a voting mechanism. Best for complex decisions or architectural questions.
+
+**Arguments:**
+- `query` (string): The question to be analyzed.
+- `num_voters` (number): Number of microagents (1-10).
+- `k` (number): Voting margin.
+
+### 3. `solve_with_voting`
+Solves a question using ONLY the "First-to-Ahead-by-k" voting mechanism (no judge synthesis). Faster and ideal for objective questions where statistical consensus is sufficient.
+
+**Arguments:**
+- `query` (string): The question to be solved.
+- `k` (number): Voting margin.
+
+### 4. `decompose_task`
+Breaks down complex tasks into atomic, verifiable steps (MAD - Maximal Agentic Decomposition).
+
+**Arguments:**
+- `task` (string): The task to be decomposed.
 
 ## 📂 Project Structure
+
 ```
 maker-council/
-├── 📄 .env                          # Local environment configuration
-├── 📁 maker-mcps/
-│   └── 📄 mcp.json                  # External tool (MCP) manifest
+├── 📄 .env                  # Environment configuration
 ├── 📁 src/
-│   ├── 📄 server.ts                 # OpenAI-compatible HTTP server
-│   ├── 📄 logic.ts                  # Core dispatcher and tool execution logic
-│   ├── 📄 config.ts                 # Configuration loader
-│   ├── 📄 internal-tools.ts        # Schema definitions for built-in tools
-│   └── 📁 mcp-client/               # Infrastructure for connecting to MCPs
-├── 📄 README.md                      # This file
-└── ...
+│   ├── 📄 index.ts          # Main MCP server entry point
+│   ├── 📄 tools.ts          # Tool definitions
+│   ├── 📄 logic.ts          # Core MAKER logic implementation
+│   ├── 📄 config.ts         # Configuration loader
+│   └── 📄 types.ts          # Type definitions
+├── 📄 package.json
+└── 📄 README.md
 ```
 
 ## 📄 Reference

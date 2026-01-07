@@ -10,17 +10,8 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsx src/server.ts",
-    "serve": "tsx src/server.ts",
-    "test:e2e": "tsx tests/e2e-api-test.ts",
-    "test:stress": "tsx tests/stress-test.ts",
-    "test:stress:quick": "tsx tests/stress-test.ts --concurrency=5 --requests=2",
-    "test:stress:heavy": "tsx tests/stress-test.ts --concurrency=20 --requests=10",
-    "test:coding": "tsx tests/coding-benchmark.ts",
-    "test:coding:quick": "tsx tests/coding-benchmark.ts --models=gemini-2.5-flash,gemini-3-pro-preview",
-    "test:mcp-client": "tsx tests/mcp-client-test.ts",
-    "test:mcp-integration": "tsx tests/logic-mcp-integration-test.ts",
-    "test:mcp": "npm run test:mcp-client && npm run test:mcp-integration"
+    "dev": "tsx src/index.ts",
+    "dashboard": "tsx src/dashboard/server.ts"
   },
   "keywords": [
     "mcp",
@@ -33,16 +24,14 @@
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "body-parser": "^2.2.1",
-    "cors": "^2.8.5",
+    "better-sqlite3": "^12.5.0",
     "dotenv": "^16.3.1",
     "express": "^5.2.1",
     "openai": "^4.0.0",
     "zod": "^4.2.0"
   },
   "devDependencies": {
-    "@types/body-parser": "^1.19.6",
-    "@types/cors": "^2.8.19",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5.0.6",
     "@types/node": "^20.0.0",
     "tsx": "^4.21.0",

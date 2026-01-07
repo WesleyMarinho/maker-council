@@ -1,4 +1,4 @@
-import { OpenAITool } from './mcp-client/types.js';
+import { OpenAITool } from './types.js';
 
 export const internalTools: OpenAITool[] = [
   {

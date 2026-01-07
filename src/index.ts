@@ -268,25 +268,5 @@ async function main() {
   console.error("MAKER-Council MCP Server started");
 }
 
-// Detect execution mode based on configuration or command-line argument
-// MAKER_MCP_MODE=true forces MCP mode (used by MCP client)
-// --mcp flag also enables MCP mode
-// By default, when executed directly (npm run dev), starts HTTP server
-const isMCPMode = config.mcpMode || process.argv.includes('--mcp');
-
-if (isMCPMode) {
-  // MCP mode: use stdin/stdout for communication with MCP client
-  main().catch(console.error);
-} else {
-  // Standalone mode: start Express HTTP server (default behavior for dev)
-  // Use async IIFE with await to ensure process waits for server to start
-  (async () => {
-    try {
-      // await ensures the main script waits for server module execution
-      await import('./server.js');
-    } catch (error) {
-      console.error('Failed to start HTTP server:', error);
-      process.exit(1);
-    }
-  })();
-}
+// Start MCP server
+main().catch(console.error);

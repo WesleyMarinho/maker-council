@@ -4,31 +4,11 @@
  */
 
 import OpenAI from "openai";
-import { ChatCompletionMessageParam } from 'openai/resources/index.mjs'; // Add this import
+import { ChatCompletionMessageParam } from 'openai/resources/index';
 import { config } from "./config.js";
-import {
-  McpToolManager,
-  ToolSchemaTranslator,
-  type McpServerConfig,
-  type OpenAIToolCall,
-  type ToolExecutionResult,
-  type AgentLoopConfig,
-  type AgentLoopResult,
-} from "./mcp-client/index.js";
 export type { Config as MakerConfig } from "./config.js";
 import { internalTools } from './internal-tools.js';
-import { OpenAITool } from './mcp-client/types.js';
-
-let availableTools: OpenAITool[] = [];
-
-export async function initializeLogic() {
-  console.error('[LOGIC] Initializing logic and loading tools...');
-  const manager = await initializeMcpClient();
-  const externalTools = manager ? manager.getToolsAsOpenAI() : [];
-  availableTools = [...internalTools, ...externalTools];
-  console.error(`[LOGIC] Initialization complete. ${availableTools.length} tools available.`);
-  availableTools.forEach(tool => console.error(`       - ${tool.function.name}`));
-}
+import { logger } from './db/logger.js';
 
 // ============================================================================
 // TYPES AND INTERFACES
@@ -115,9 +95,6 @@ export async function createMessage(
   const url = `${config.apiUrl}chat/completions`;
 
   try {
-    console.error(`[MAKER] Calling API: model=${model}, temp=${temperature}, maxTokens=${maxTokens}`);
-    console.error(`[MAKER] Full URL: ${url}`);
-
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -142,8 +119,6 @@ export async function createMessage(
 
     const data = await response.json() as any;
 
-    console.error(`[MAKER] Response received: choices=${data.choices?.length || 0}`);
-
     const message = data.choices?.[0]?.message as any;
     let text = message?.content || "";
     const reasoningText = message?.reasoning_content || "";
@@ -157,9 +132,6 @@ export async function createMessage(
     }
 
     const tokens = data.usage?.completion_tokens || Math.ceil(text.length / 4);
-
-    console.error(`[MAKER] Extracted text: ${text.substring(0, 100)}... (${tokens} tokens)`);
-    console.error(`[MAKER] Has reasoning: ${!!reasoningText}, Has content: ${!!message?.content}`);
 
     return { text, tokens };
   } catch (error) {
@@ -452,20 +424,6 @@ function isSimpleGreeting(prompt: string): boolean {
   return greetings.includes(normalizedPrompt);
 }
 
-function isMcpMetaQuestion(prompt: string): boolean {
-  const normalized = prompt.toLowerCase();
-  const mcpKeywords = ['mcp', 'integra', 'ferramenta', 'tool', 'servidor', 'server'];
-  const metaKeywords = ['como funciona', 'how does', 'de onde', 'where', 'what is', 'como', 'funciona', 'obtemos', 'disponiveis'];
-
-  const hasMcpKeyword = mcpKeywords.some(keyword => normalized.includes(keyword));
-  const hasMetaKeyword = metaKeywords.some(keyword => normalized.includes(keyword));
-
-  const result = hasMcpKeyword && hasMetaKeyword;
-  console.error(`[LOGIC] isMcpMetaQuestion: mcp=${hasMcpKeyword}, meta=${hasMetaKeyword}, result=${result}`);
-
-  return result;
-}
-
 export function buildFullPrompt(prompt: string, context?: QueryContext): string {
   if (!context) {
     return prompt;
@@ -497,10 +455,29 @@ export async function handleQuery(request: QueryRequest): Promise<QueryResponse>
   const startTime = Date.now();
   const requestId = generateRequestId();
 
+  // Log Request
+  try {
+    logger.logRequest({
+      id: requestId,
+      timestamp: new Date().toISOString(),
+      tool_name: request.intent ? intentToToolName(request.intent) : 'query', // Infer tool name or generic
+      prompt: request.prompt,
+      intent: request.intent,
+      config: JSON.stringify(request.config),
+      status: 'pending',
+      duration_ms: 0
+    });
+  } catch (e) {
+    console.error('[LOGIC] Failed to log request:', e);
+  }
+
   // Recursion Guard (Loop Prevention)
   const currentDepth = request.context?.recursionDepth || 0;
   if (currentDepth > config.maxRecursionDepth) {
     console.error(`[LOGIC] Max recursion depth reached (${currentDepth}). Aborting.`);
+    const errorMsg = "Max recursion depth reached.";
+    logger.updateRequestStatus(requestId, 'error', Date.now() - startTime);
+    logger.log({ request_id: requestId, level: 'error', message: errorMsg });
     return {
       result: `Error: Maximum recursion depth reached. The agent loop was terminated to prevent infinite loops.`,
       metadata: {
@@ -510,7 +487,7 @@ export async function handleQuery(request: QueryRequest): Promise<QueryResponse>
         performance: {
           total_time_seconds: 0,
         },
-        raw_output: "Max recursion depth reached."
+        raw_output: errorMsg
       }
     };
   }
@@ -518,7 +495,17 @@ export async function handleQuery(request: QueryRequest): Promise<QueryResponse>
   // Fast path for simple greetings - bypass tool dispatcher
   if (isSimpleGreeting(request.prompt)) {
     console.error('[LOGIC] Simple greeting detected. Bypassing tool dispatcher.');
-    const totalTime = (Date.now() - startTime) / 1000;
+    const duration = Date.now() - startTime;
+    const totalTime = duration / 1000;
+    
+    logger.updateRequestStatus(requestId, 'success', duration);
+    logger.logResponse({
+      request_id: requestId,
+      timestamp: new Date().toISOString(),
+      result: "Hello! How can I help you today?",
+      metadata: JSON.stringify({ tool_used: 'none' })
+    });
+
     return {
       result: "Hello! How can I help you today?",
       metadata: {
@@ -533,55 +520,6 @@ export async function handleQuery(request: QueryRequest): Promise<QueryResponse>
     };
   }
 
-  // Fast path for MCP meta questions
-  if (isMcpMetaQuestion(request.prompt)) {
-    console.error('[LOGIC] MCP meta question detected. Providing direct answer.');
-    const totalTime = (Date.now() - startTime) / 1000;
-    const mcpAnswer = `A integração MCP (Model Context Protocol) do MAKER-Council funciona da seguinte forma:
-
-**Fonte dos Servidores MCP:**
-- Os servidores MCP são configurados no arquivo \`maker-mcps/mcp.json\`
-- Este arquivo contém uma lista de servidores, cada um com comando, argumentos e configurações
-
-**Como Funciona:**
-1. No startup, o sistema lê o arquivo \`mcp.json\`
-2. Para cada servidor habilitado, inicia um processo child com o comando especificado
-3. Conecta via stdio (stdin/stdout) usando o protocolo MCP
-4. Descobre as ferramentas disponíveis em cada servidor
-5. Integra essas ferramentas com as ferramentas internas (consult_council, solve_with_voting, decompose_task)
-
-**Servidores Configurados Atualmente:**
-- **serena**: Ferramentas de busca e análise de código (requer Git)
-- **filesystem-access**: Ferramentas de leitura/escrita de arquivos (${availableTools.filter(t => t.function.name.includes('filesystem')).length} ferramentas)
-
-**Total de Ferramentas Disponíveis:** ${availableTools.length}
-
-Para adicionar mais servidores MCP, edite o arquivo \`maker-mcps/mcp.json\`.`;
-
-    return {
-      result: mcpAnswer,
-      metadata: {
-        tool_used: 'direct_answer',
-        request_id: requestId,
-        timestamp: new Date().toISOString(),
-        performance: {
-          total_time_seconds: totalTime,
-        },
-        raw_output: "MCP meta question answered directly.",
-      }
-    };
-  }
-
-  console.error('[LOGIC] New handleQuery received request:', request.prompt);
-  console.error(`[LOGIC] ${availableTools.length} tools are available for routing.`);
-
-  // --- RE-ACT AGENT LOOP ---
-  // Determine if we have external MCP tools available
-  const hasExternalTools = availableTools.some(t => !internalTools.some(it => it.function.name === t.function.name));
-  const toolsDescription = hasExternalTools
-    ? 'Internal MAKER-Council tools AND external MCP tools are available.'
-    : 'ONLY internal MAKER-Council tools are available. No external MCP servers are connected.';
-
   const messages: ChatCompletionMessageParam[] = [
     {
       role: 'system',
@@ -589,31 +527,21 @@ Para adicionar mais servidores MCP, edite o arquivo \`maker-mcps/mcp.json\`.`;
       
       GOAL: Resolve the user's request efficiently using available tools.
 
-      TOOL AVAILABILITY: ${toolsDescription}
-
       TOOLS AVAILABLE (use ONLY these):
-      ${availableTools.map(t => `- ${t.function.name}: ${(t.function.description || '').split('\n')[0]}`).join('\n')}
+      ${internalTools.map(t => `- ${t.function.name}: ${(t.function.description || '').split('\n')[0]}`).join('\n')}
       
       IMPORTANT - When to Answer Directly:
-      1. **Meta Questions**: If the user asks about how THIS system works (MCP integration, configuration, architecture), answer directly based on what you know. DO NOT call external tools.
-      2. **General Knowledge**: For factual questions you can answer, respond directly.
-      3. **After Tool Execution**: Once you have the information from a tool, formulate the final answer yourself.
-      4. **No Suitable Tool**: If none of the available tools are suitable for the task, answer directly with your best knowledge.
+      1. **General Knowledge**: For factual questions you can answer, respond directly.
+      2. **After Tool Execution**: Once you have the information from a tool, formulate the final answer yourself.
+      3. **No Suitable Tool**: If none of the available tools are suitable for the task, answer directly with your best knowledge.
       
       When to Call Tools (ONLY if the tool is listed above):
       1. **Code Analysis/Review**: Use "consult_council" for complex decisions or code review.
       2. **Complex Reasoning**: Use "solve_with_voting" for validation or consensus.
       3. **Task Planning**: Use "decompose_task" for breaking down complex tasks.
       
-      Error Handling:
-      - If a tool returns an error or unexpected message (like "onboarding required"), DO NOT pass it to the user.
-      - Instead, try a different approach or answer directly if possible.
-      - NEVER call a tool that is not in the TOOLS AVAILABLE list above.
-      
       CRITICAL:
-      - Do not loop infinitely. If a tool fails repeatedly, stop and inform the user.
-      - For questions about MCP servers, configuration files, or system architecture, answer directly.
-      - If no external MCP tools are available, DO NOT attempt to call tools like "onboarding", "filesystem", "serena", etc.`
+      - Do not loop infinitely. If a tool fails repeatedly, stop and inform the user.`
     },
     {
       role: 'user',
@@ -621,20 +549,19 @@ Para adicionar mais servidores MCP, edite o arquivo \`maker-mcps/mcp.json\`.`;
     }
   ];
 
-  const maxIterations = config.mcpClient.maxAgentIterations || 10;
+  const maxIterations = 10;
   let iterations = 0;
   let finalResult: any = null;
   let lastToolUsed = 'orchestrator';
 
   while (iterations < maxIterations) {
     iterations++;
-    console.error(`[LOGIC] Agent Loop Iteration ${iterations}/${maxIterations}`);
 
     const client = getClient();
     const response = await client.chat.completions.create({
       model: config.judgeModel,
       messages,
-      tools: availableTools,
+      tools: internalTools,
       tool_choice: 'auto',
     });
 
@@ -667,8 +594,6 @@ Para adicionar mais servidores MCP, edite o arquivo \`maker-mcps/mcp.json\`.`;
       continue;
     }
 
-    console.error(`[LOGIC] Agent calls tool: ${toolName}`, args);
-
     // Arg Fixes
     if (toolName.includes('get_symbols_overview') && args.file_path && !args.relative_path) {
       args.relative_path = args.file_path;
@@ -680,50 +605,40 @@ Para adicionar mais servidores MCP, edite o arquivo \`maker-mcps/mcp.json\`.`;
     }
 
     // Execute Tool
+    const toolCallId = generateRequestId();
+    const toolStartTime = Date.now();
     let toolOutput: string;
+    let toolError: string | undefined;
+
     try {
       if (internalTools.some(t => t.function.name === toolName)) {
         const result = await executeInternalTool(toolName, args);
         // Internal tools return string directly (usually markup report)
         toolOutput = typeof result === 'string' ? result : JSON.stringify(result);
       } else {
-        const mcpManager = getMcpToolManager();
-        if (!mcpManager) {
-          // MCP tools are not available - guide the agent to use internal tools or answer directly
-          toolOutput = `Error: Tool "${toolName}" is an external MCP tool, but no MCP servers are connected. ` +
-            `Please use only the internal MAKER-Council tools (consult_council, solve_with_voting, decompose_task) ` +
-            `or answer the user's question directly if possible.`;
-        } else {
-          const mcpResult = await mcpManager.executeTool({ toolName, arguments: args });
-          if (mcpResult.success) {
-            // Start of Content Handling Update
-            if (Array.isArray(mcpResult.content)) {
-              toolOutput = mcpResult.content
-                .map(item => {
-                  if (item.type === 'text') return item.text;
-                  if (item.type === 'image') return `[Image: ${item.mimeType}]`; // Placeholder for images
-                  if (item.type === 'resource') return `[Resource: ${item.resource.uri}]`; // Placeholder for resources
-                  return JSON.stringify(item);
-                })
-                .join('\n');
-            } else {
-              // Fallback for unexpected content structure
-              toolOutput = typeof mcpResult.content === 'string'
-                ? mcpResult.content
-                : JSON.stringify(mcpResult.content);
-            }
-            // End of Content Handling Update
-
-          } else {
-            toolOutput = `Error executing tool: ${mcpResult.error}`;
-          }
-        }
+        toolOutput = `Error: Unknown tool "${toolName}". Only internal tools are available.`;
+        toolError = `Unknown tool: ${toolName}`;
       }
     } catch (error) {
-      toolOutput = `Error execution exception: ${String(error)}`;
+      toolError = String(error);
+      toolOutput = `Error execution exception: ${toolError}`;
     }
 
-    console.error(`[LOGIC] Tool output length: ${toolOutput.length}`);
+    const toolDuration = Date.now() - toolStartTime;
+    try {
+      logger.logToolCall({
+        id: toolCallId,
+        request_id: requestId,
+        timestamp: new Date().toISOString(),
+        tool_name: toolName,
+        arguments: JSON.stringify(args),
+        output: toolOutput,
+        error: toolError,
+        duration_ms: toolDuration
+      });
+    } catch (e) {
+      console.error('[LOGIC] Failed to log tool call:', e);
+    }
 
     // Add tool output to history so agent can see it
     messages.push({
@@ -741,8 +656,17 @@ Para adicionar mais servidores MCP, edite o arquivo \`maker-mcps/mcp.json\`.`;
     }
   }
 
-  const totalTime = (Date.now() - startTime) / 1000;
+  const duration = Date.now() - startTime;
+  const totalTime = duration / 1000;
   const raw_output_for_metadata = typeof finalResult === 'string' ? finalResult : JSON.stringify(finalResult);
+
+  logger.updateRequestStatus(requestId, 'success', duration);
+  logger.logResponse({
+    request_id: requestId,
+    timestamp: new Date().toISOString(),
+    result: raw_output_for_metadata,
+    metadata: JSON.stringify({ tool_used: lastToolUsed, performance: { total_time_seconds: totalTime } })
+  });
 
   return {
     result: finalResult,
@@ -756,6 +680,16 @@ Para adicionar mais servidores MCP, edite o arquivo \`maker-mcps/mcp.json\`.`;
       raw_output: raw_output_for_metadata,
     }
   };
+}
+
+function intentToToolName(intent: Intent): string {
+  switch (intent) {
+    case 'decision': return 'consult_council';
+    case 'code_review': return 'consult_council';
+    case 'decomposition': return 'decompose_task';
+    case 'validation': return 'solve_with_voting';
+    default: return 'unknown';
+  }
 }
 
 async function internalHandleConsultCouncil(query: string, num_voters?: number, k?: number): Promise<string> {
@@ -811,7 +745,6 @@ async function internalHandleDecomposeTask(task: string): Promise<string> {
 }
 
 async function executeInternalTool(toolName: string, args: any): Promise<any> {
-  console.error(`[LOGIC] Executing internal tool: ${toolName}`);
   switch (toolName) {
     case 'consult_council':
       return internalHandleConsultCouncil(args.query, args.num_voters, args.k);
@@ -824,73 +757,6 @@ async function executeInternalTool(toolName: string, args: any): Promise<any> {
   }
 }
 
-// ============================================================================
-// MCP CLIENT INTEGRATION
-// ============================================================================
-
-// Global MCP Tool Manager instance
-let mcpToolManager: McpToolManager | null = null;
-
-/**
- * Initialize the MCP Tool Manager with configured servers
- */
-export async function initializeMcpClient(): Promise<McpToolManager | null> {
-  if (!config.mcpClient.enabled) {
-    console.error('[MAKER] MCP Client is disabled');
-    return null;
-  }
-
-  if (mcpToolManager) {
-    console.error('[MAKER] MCP Client already initialized');
-    return mcpToolManager;
-  }
-
-  const serverConfigs: McpServerConfig[] = config.mcpClient.servers.map(s => ({
-    name: s.name,
-    command: s.command,
-    args: s.args,
-    env: s.env,
-    cwd: s.cwd,
-    timeout: s.timeout || config.mcpClient.defaultTimeout,
-    autoReconnect: s.autoReconnect,
-  }));
-
-  if (serverConfigs.length === 0) {
-    console.error('[MAKER] No MCP servers configured');
-    return null;
-  }
-
-  console.error(`[MAKER] Initializing MCP Client with ${serverConfigs.length} servers...`);
-
-  mcpToolManager = new McpToolManager(serverConfigs);
-
-  try {
-    await mcpToolManager.initialize();
-    console.error(`[MAKER] MCP Client initialized: ${mcpToolManager.getToolCount()} tools available`);
-    return mcpToolManager;
-  } catch (err) {
-    console.error('[MAKER] Failed to initialize MCP Client:', err);
-    mcpToolManager = null;
-    return null;
-  }
-}
-
-/**
- * Get the MCP Tool Manager instance
- */
-export function getMcpToolManager(): McpToolManager | null {
-  return mcpToolManager;
-}
-
-/**
- * Shutdown the MCP Tool Manager
- */
-export async function shutdownMcpClient(): Promise<void> {
-  if (mcpToolManager) {
-    await mcpToolManager.shutdown();
-    mcpToolManager = null;
-  }
-}
 
 
 // ============================================================================
