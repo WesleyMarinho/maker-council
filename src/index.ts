@@ -24,6 +24,7 @@ import {
 // Import MAKER-Council logic and configuration
 import {
   handleQuery,
+  handleSeniorCodeReview,
   type MakerConfig,
   type QueryRequest,
   type QueryResponse,
@@ -103,16 +104,16 @@ Routing:
   {
     name: "consult_council",
     description: `Consult MAKER-Council using the complete algorithm from the paper.
-
-Process:
-1. Multiple microagents (voters) generate proposals using first-to-ahead-by-k voting
-2. A senior judge analyzes proposals and synthesizes consensus
-3. Red-flagging automatically discards problematic responses
-
-Parameters:
-- query: The question or code to be analyzed
-- num_voters: Number of microagents (default: 3)
-- k: First-to-ahead-by-k voting margin (default: 3)`,
+ 
+ Process:
+ 1. Multiple microagents (voters) generate proposals using first-to-ahead-by-k voting
+ 2. A senior judge analyzes proposals and synthesizes consensus
+ 3. Red-flagging automatically discards problematic responses
+ 
+ Parameters:
+ - query: The question or code to be analyzed
+ - num_voters: Number of microagents (default: 3)
+ - k: First-to-ahead-by-k voting margin (default: 3)`,
     inputSchema: {
       type: "object",
       properties: {
@@ -124,15 +125,55 @@ Parameters:
     },
   },
   {
+    name: "senior_code_review",
+    description: `Performs a deep, skeptical code review assuming the code was written by a junior developer.
+
+This tool applies the Senior Code Reviewer protocol with heightened scrutiny:
+- Security vulnerabilities (SQLi, XSS, auth issues, data exposure)
+- Performance issues (N+1 queries, memory leaks, O(n^2) complexity)
+- Code quality (SOLID, DRY, KISS, design patterns)
+- Error handling (exception swallowing, null checks, edge cases)
+- Testing & maintainability (coverage, documentation, config)
+
+Returns a structured review with:
+- Critical & Major issues with fixes
+- Minor issues & suggestions
+- Educational corner explaining concepts
+- Quality score (1-10)`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        code: {
+          type: "string",
+          description: "The code to be reviewed. Include the full code snippet or file content."
+        },
+        language: {
+          type: "string",
+          description: "Programming language of the code (e.g., typescript, python, java). Auto-detected if not provided."
+        },
+        context: {
+          type: "string",
+          description: "Optional context about the code: what it does, where it runs, security requirements, etc."
+        },
+        focus_areas: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional list of specific areas to focus on: security, performance, architecture, error_handling, testing."
+        }
+      },
+      required: ["code"],
+    },
+  },
+  {
     name: "solve_with_voting",
     description: `Solve a question using ONLY first-to-ahead-by-k voting (no judge).
-
-Useful for questions with objective answers where statistical consensus is sufficient.
-Faster and cheaper than consult_council.
-
-Parameters:
-- query: The question to be solved
-- k: Voting margin (default: 3)`,
+ 
+ Useful for questions with objective answers where statistical consensus is sufficient.
+ Faster and cheaper than consult_council.
+ 
+ Parameters:
+ - query: The question to be solved
+ - k: Voting margin (default: 3)`,
     inputSchema: {
       type: "object",
       properties: {
@@ -242,6 +283,32 @@ async function main() {
           };
           const response = await handleQuery(queryRequest);
           result = JSON.stringify(response, null, 2);
+          break;
+        }
+
+        case "senior_code_review": {
+          const review = await handleSeniorCodeReview(
+            args?.code as string,
+            args?.language as string | undefined,
+            args?.context as string | undefined,
+            args?.focus_areas as string[] | undefined
+          );
+          result = JSON.stringify(
+            {
+              result: review,
+              metadata: {
+                tool_used: 'senior_code_review',
+                request_id: 'n/a',
+                timestamp: new Date().toISOString(),
+                performance: {
+                  total_time_seconds: 0,
+                },
+                raw_output: review,
+              },
+            },
+            null,
+            2
+          );
           break;
         }
 

@@ -31,7 +31,7 @@ export interface RedFlagResult {
 }
 
 export type Intent = 'decision' | 'code_review' | 'decomposition' | 'validation';
-export type ToolUsed = 'consult_council' | 'decompose_task' | 'solve_with_voting';
+export type ToolUsed = 'consult_council' | 'decompose_task' | 'solve_with_voting' | 'senior_code_review';
 
 export interface QueryContext {
   code?: string;
@@ -337,6 +337,66 @@ RESPONSE FORMAT:
 - Start with "## Analysis" summarizing the proposals.
 - Follow with "## Decision" presenting the final solution.
 - If the solution involves code, provide the complete and functional code.`;
+
+export const SENIOR_CODE_REVIEW_SYSTEM_PROMPT = `You are a Senior Code Reviewer Specialist with a skeptical, security-first mindset.
+Your core philosophy is that ALL code you review is assumed to be written by a junior developer
+and requires deep, thorough, and uncompromising analysis. You act as the final quality gate,
+ensuring that no critical issues, security vulnerabilities, or bad practices slip through.
+You combine technical rigor with educational feedback to elevate code quality and developer skills.
+
+MANDATORY: Every review must begin with this exact sentence:
+"⚠️ JUNIOR DEV CODE ALERT: This code was produced by a junior developer and requires thorough, deep analysis. I will examine every line with heightened scrutiny."
+
+REVIEW CATEGORIES & CHECKLIST
+1. Security vulnerabilities: injection, auth flaws, data exposure, input validation, dependencies, CSRF.
+2. Performance & efficiency: N+1, memory leaks, O(n^2), blocking IO, concurrency issues.
+3. Code quality & architecture: SOLID, DRY/KISS, design patterns, coupling/cohesion, naming.
+4. Error handling & reliability: exceptions, null checks, edge cases, logging, recovery.
+5. Testing & maintainability: missing tests, brittle tests, docs, config/magic values.
+
+OUTPUT FORMAT (use exactly):
+---
+**⚠️ JUNIOR DEV CODE ALERT: This code was produced by a junior developer and requires thorough, deep analysis. I will examine every line with heightened scrutiny.**
+
+### 📊 Review Summary
+*Brief overview of the code quality and main findings.*
+
+### 🔴 Critical & Major Issues
+*List of severe issues that must be addressed.*
+1. **[Category] Issue Name**
+   - **Analysis:** Why this is a problem.
+   - **Risk:** What happens if ignored.
+   - **Fix:**
+     \`\`\`language
+     // Correct code example
+     \`\`\`
+
+### 🟡 Minor Issues & Suggestions
+*List of improvements and best practices.*
+1. **[Category] Issue Name**
+   - **Analysis:** Explanation.
+   - **Suggestion:** How to improve.
+
+### 🎓 Educational Corner
+*Pick the most interesting issue and explain the concept in depth.*
+
+### 🏆 Code Quality Score: [X]/10
+*Honest rating based on the "Junior Dev" baseline.*
+---
+
+COMMON JUNIOR MISTAKES TO WATCH FOR
+- trusting client input blindly
+- using print instead of logging
+- hardcoding secrets
+- writing happy-path-only code
+- ignoring resource cleanup
+- reinventing the wheel
+- premature optimization vs gross inefficiency
+
+TOOLS & TECHNIQUES
+- Static analysis mental model: simulate execution flow
+- Taint analysis: trace user input from source to sink
+- Boundary value analysis: min, max, -1, 0, 1, null, empty`;
 
 export const DECOMPOSER_SYSTEM_PROMPT = `You are an expert in task decomposition following the MAKER methodology.
 Your role is to break down complex tasks into ATOMIC and ACTIONABLE steps.
@@ -721,6 +781,51 @@ async function internalHandleConsultCouncil(query: string, num_voters?: number, 
   return result;
 }
 
+async function internalHandleSeniorCodeReview(
+  code: string,
+  language?: string,
+  context?: string,
+  focusAreas?: string[]
+): Promise<string> {
+  const promptParts: string[] = [];
+
+  if (language) {
+    promptParts.push(`Language: ${language}`);
+  }
+
+  if (context) {
+    promptParts.push(`Context: ${context}`);
+  }
+
+  if (focusAreas && focusAreas.length > 0) {
+    promptParts.push(`Focus areas: ${focusAreas.join(', ')}`);
+  }
+
+  const codeLanguage = language || 'text';
+  promptParts.push(`Code:\n\n\`\`\`${codeLanguage}\n${code}\n\`\`\``);
+
+  const userPrompt = promptParts.join('\n\n');
+
+  const { text } = await createMessage(
+    config.judgeModel,
+    SENIOR_CODE_REVIEW_SYSTEM_PROMPT,
+    userPrompt,
+    0.2,
+    config.maxTokens
+  );
+
+  return text;
+}
+
+export async function handleSeniorCodeReview(
+  code: string,
+  language?: string,
+  context?: string,
+  focusAreas?: string[]
+): Promise<string> {
+  return internalHandleSeniorCodeReview(code, language, context, focusAreas);
+}
+
 async function internalHandleSolveWithVoting(query: string, k?: number): Promise<string> {
   const { winner, state } = await firstToAheadByKVoting(
     query,
@@ -748,6 +853,13 @@ async function executeInternalTool(toolName: string, args: any): Promise<any> {
   switch (toolName) {
     case 'consult_council':
       return internalHandleConsultCouncil(args.query, args.num_voters, args.k);
+    case 'senior_code_review':
+      return internalHandleSeniorCodeReview(
+        args.code,
+        args.language,
+        args.context,
+        args.focus_areas
+      );
     case 'solve_with_voting':
       return internalHandleSolveWithVoting(args.query, args.k);
     case 'decompose_task':
