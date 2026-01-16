@@ -35,6 +35,11 @@ import {
 } from './logic.js';
 import { config } from './config.js';
 
+// Import Specs and Tasks modules
+import * as specs from './specs.js';
+import * as tasks from './tasks.js';
+import type { TaskStatus } from './types/tasks.js';
+
 // ============================================================================
 // MCP TOOLS
 // ============================================================================
@@ -201,6 +206,172 @@ Returns JSON with the structured decomposition.`,
       required: ["task"],
     },
   },
+  // ============================================================================
+  // SPECS TOOLS
+  // ============================================================================
+  {
+    name: "parse_spec",
+    description: `Parse a PRD or specification document and extract structured information.
+
+Uses LLM to analyze the document and create a structured spec with:
+- Title and description
+- Organized sections (goals, requirements, constraints, etc.)
+
+The spec is saved to .maker/specs.json and becomes the current spec.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        content: { type: "string", description: "The PRD or specification document content to parse" },
+        workspace_path: { type: "string", description: "Optional workspace path (defaults to current directory)" }
+      },
+      required: ["content"],
+    },
+  },
+  {
+    name: "get_spec",
+    description: `Get a specification by ID or the current/most recent spec.
+
+Returns the full spec with all sections.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Optional spec ID. If not provided, returns the current spec." },
+        workspace_path: { type: "string", description: "Optional workspace path" }
+      },
+      required: [],
+    },
+  },
+  {
+    name: "update_spec",
+    description: `Update an existing specification.
+
+Allows updating title, description, sections, or metadata.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Spec ID to update" },
+        title: { type: "string", description: "New title" },
+        description: { type: "string", description: "New description" },
+        workspace_path: { type: "string", description: "Optional workspace path" }
+      },
+      required: ["id"],
+    },
+  },
+  // ============================================================================
+  // TASKS TOOLS
+  // ============================================================================
+  {
+    name: "list_tasks",
+    description: `List all tasks, optionally filtered by status.
+
+Returns a formatted list with task IDs, titles, status, priority, and subtask progress.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        status: {
+          type: "string",
+          enum: ["pending", "in-progress", "done", "review", "deferred", "cancelled"],
+          description: "Optional status filter"
+        },
+        workspace_path: { type: "string", description: "Optional workspace path" }
+      },
+      required: [],
+    },
+  },
+  {
+    name: "get_task",
+    description: `Get detailed information about a specific task.
+
+Returns the full task with description, details, test strategy, and all subtasks.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "number", description: "Task ID to retrieve" },
+        workspace_path: { type: "string", description: "Optional workspace path" }
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "next_task",
+    description: `Get the next available task to work on.
+
+Returns the first pending task that has no pending dependencies.
+Ideal for determining what to work on next.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspace_path: { type: "string", description: "Optional workspace path" }
+      },
+      required: [],
+    },
+  },
+  {
+    name: "add_task",
+    description: `Add a new task to the task list.
+
+Creates a task with pending status and optional priority/dependencies.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Brief task title" },
+        description: { type: "string", description: "Task description" },
+        priority: {
+          type: "string",
+          enum: ["high", "medium", "low"],
+          description: "Task priority (default: medium)"
+        },
+        dependencies: {
+          type: "array",
+          items: { type: "number" },
+          description: "IDs of tasks that must be completed first"
+        },
+        details: { type: "string", description: "Implementation details" },
+        testStrategy: { type: "string", description: "How to verify the task is complete" },
+        workspace_path: { type: "string", description: "Optional workspace path" }
+      },
+      required: ["title", "description"],
+    },
+  },
+  {
+    name: "set_task_status",
+    description: `Update the status of a task or subtask.
+
+Use "3.1" notation for subtasks (subtask 1 of task 3).
+Marking a task as "done" also marks all its subtasks as done.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: {
+          type: "string",
+          description: "Task ID (number) or subtask ID (e.g., '3.1' for subtask 1 of task 3)"
+        },
+        status: {
+          type: "string",
+          enum: ["pending", "in-progress", "done", "review", "deferred", "cancelled"],
+          description: "New status"
+        },
+        workspace_path: { type: "string", description: "Optional workspace path" }
+      },
+      required: ["id", "status"],
+    },
+  },
+  {
+    name: "expand_task",
+    description: `Expand a task into subtasks using AI.
+
+Uses LLM to analyze the task and generate 3-7 atomic subtasks.
+Optionally accepts additional context to guide the expansion.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "number", description: "Task ID to expand" },
+        prompt: { type: "string", description: "Optional additional context for expansion" },
+        workspace_path: { type: "string", description: "Optional workspace path" }
+      },
+      required: ["id"],
+    },
+  },
 ];
 
 // ============================================================================
@@ -309,6 +480,135 @@ async function main() {
             null,
             2
           );
+          break;
+        }
+
+        // ====================================================================
+        // SPECS HANDLERS
+        // ====================================================================
+        case "parse_spec": {
+          const parseResult = await specs.parseSpec(
+            args?.content as string,
+            args?.workspace_path as string | undefined
+          );
+          if (parseResult.success) {
+            result = JSON.stringify({
+              success: true,
+              message: `Spec "${parseResult.spec?.title}" created with ID: ${parseResult.spec?.id}`,
+              spec: parseResult.spec
+            }, null, 2);
+          } else {
+            result = JSON.stringify({ success: false, error: parseResult.error }, null, 2);
+          }
+          break;
+        }
+
+        case "get_spec": {
+          const spec = specs.getSpec(
+            args?.id as string | undefined,
+            args?.workspace_path as string | undefined
+          );
+          if (spec) {
+            result = JSON.stringify(spec, null, 2);
+          } else {
+            result = JSON.stringify({ error: "No spec found" }, null, 2);
+          }
+          break;
+        }
+
+        case "update_spec": {
+          const updated = specs.updateSpec(
+            args?.id as string,
+            {
+              title: args?.title as string | undefined,
+              description: args?.description as string | undefined,
+            },
+            args?.workspace_path as string | undefined
+          );
+          if (updated) {
+            result = JSON.stringify({ success: true, spec: updated }, null, 2);
+          } else {
+            result = JSON.stringify({ success: false, error: "Spec not found" }, null, 2);
+          }
+          break;
+        }
+
+        // ====================================================================
+        // TASKS HANDLERS
+        // ====================================================================
+        case "list_tasks": {
+          const taskList = tasks.listTasks(
+            args?.status as TaskStatus | undefined,
+            args?.workspace_path as string | undefined
+          );
+          result = tasks.formatTaskList(taskList);
+          break;
+        }
+
+        case "get_task": {
+          const task = tasks.getTask(
+            args?.id as number,
+            args?.workspace_path as string | undefined
+          );
+          if (task) {
+            result = tasks.formatTask(task);
+          } else {
+            result = `Task ${args?.id} not found.`;
+          }
+          break;
+        }
+
+        case "next_task": {
+          const next = tasks.nextTask(args?.workspace_path as string | undefined);
+          if (next) {
+            result = tasks.formatTask(next);
+          } else {
+            result = "No pending tasks available. All tasks are either done or blocked by dependencies.";
+          }
+          break;
+        }
+
+        case "add_task": {
+          const newTask = tasks.addTask(
+            {
+              title: args?.title as string,
+              description: args?.description as string,
+              priority: args?.priority as "high" | "medium" | "low" | undefined,
+              dependencies: args?.dependencies as number[] | undefined,
+              details: args?.details as string | undefined,
+              testStrategy: args?.testStrategy as string | undefined,
+            },
+            args?.workspace_path as string | undefined
+          );
+          result = `✅ Task ${newTask.id} created: "${newTask.title}"\n\n${tasks.formatTask(newTask)}`;
+          break;
+        }
+
+        case "set_task_status": {
+          const updated = tasks.setTaskStatus(
+            args?.id as string,
+            args?.status as TaskStatus,
+            args?.workspace_path as string | undefined
+          );
+          if (updated) {
+            result = `✅ Status updated to "${args?.status}"\n\n${tasks.formatTask(updated)}`;
+          } else {
+            result = `Task ${args?.id} not found.`;
+          }
+          break;
+        }
+
+        case "expand_task": {
+          const expandResult = await tasks.expandTask(
+            args?.id as number,
+            args?.prompt as string | undefined,
+            args?.workspace_path as string | undefined
+          );
+          if (expandResult.success) {
+            result = `✅ Task expanded with ${expandResult.subtasks_added} subtasks\n\n${tasks.formatTask(expandResult.task!)}`;
+          } else {
+            result = `❌ Failed to expand task: ${expandResult.error}`;
+          }
           break;
         }
 

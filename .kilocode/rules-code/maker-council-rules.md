@@ -1,6 +1,6 @@
 # Regras de Uso do MAKER-Council MCP
 
-> **Versão:** 1.1 | **Atualizado:** 2025-12-15
+> **Versão:** 2.0 | **Atualizado:** 2026-01-16
 
 ---
 
@@ -35,6 +35,114 @@
 - Operações CRUD básicas
 - Correções de sintaxe óbvias
 - Quando você já sabe a resposta correta
+
+---
+
+## 📋 SPECS - Gerenciamento de Especificações
+
+### ✅ USE `parse_spec` para:
+- **Criar spec estruturada** a partir de PRD ou documento de requisitos
+- **Extrair goals/requisitos** de textos não estruturados
+- **Iniciar novo projeto** com especificações claras
+
+### ✅ USE `get_spec` para:
+- **Consultar spec atual** ou por ID específico
+- **Ver seções e requisitos** do projeto
+
+### ✅ USE `update_spec` para:
+- **Atualizar título/descrição** de spec existente
+- **Refinar requisitos** após feedback
+
+### Formato de uso:
+
+```xml
+<use_mcp_tool>
+<server_name>maker-council</server_name>
+<tool_name>parse_spec</tool_name>
+<arguments>
+{
+  "content": "# MVP Sistema de Pagamentos\n\n## Goals\n- Aceitar cartões de crédito\n- Processar PIX\n\n## Requisitos\n1. Integrar com gateway\n2. Logs de auditoria"
+}
+</arguments>
+</use_mcp_tool>
+```
+
+---
+
+## ✅ TASKS - Gerenciamento de Tarefas
+
+### ✅ USE `list_tasks` para:
+- **Ver todas as tasks** do projeto
+- **Filtrar por status** (pending, in-progress, done, etc.)
+
+### ✅ USE `get_task` para:
+- **Ver detalhes** de uma task específica
+- **Ver subtasks** e status de progresso
+
+### ✅ USE `next_task` para:
+- **Saber o que fazer agora** - Retorna task pendente sem dependências bloqueantes
+
+### ✅ USE `add_task` para:
+- **Criar nova task** com título, descrição, prioridade
+- **Definir dependências** entre tasks
+
+### ✅ USE `set_task_status` para:
+- **Marcar progresso** (pending → in-progress → done)
+- **Atualizar subtasks** usando notação "3.1" (subtask 1 da task 3)
+
+### ✅ USE `expand_task` para:
+- **Gerar subtasks automaticamente** usando LLM
+- **Detalhar task complexa** em passos menores
+
+### Exemplos:
+
+```xml
+<!-- Adicionar task -->
+<use_mcp_tool>
+<server_name>maker-council</server_name>
+<tool_name>add_task</tool_name>
+<arguments>
+{
+  "title": "Implementar autenticação",
+  "description": "Sistema JWT com refresh tokens",
+  "priority": "high",
+  "dependencies": []
+}
+</arguments>
+</use_mcp_tool>
+
+<!-- Expandir em subtasks -->
+<use_mcp_tool>
+<server_name>maker-council</server_name>
+<tool_name>expand_task</tool_name>
+<arguments>
+{
+  "id": 1,
+  "prompt": "Considerar integração com OAuth"
+}
+</arguments>
+</use_mcp_tool>
+
+<!-- Próxima task -->
+<use_mcp_tool>
+<server_name>maker-council</server_name>
+<tool_name>next_task</tool_name>
+<arguments>{}
+</arguments>
+</use_mcp_tool>
+
+<!-- Atualizar status -->
+<use_mcp_tool>
+<server_name>maker-council</server_name>
+<tool_name>set_task_status</tool_name>
+<arguments>
+{
+  "id": "1",
+  "status": "in-progress"
+}
+</arguments>
+</use_mcp_tool>
+```
 
 ---
 
@@ -88,7 +196,7 @@
 <tool_name>consult_council</tool_name>
 <arguments>
 {
-  "query": "CONTEXTO:\n[Descreva o contexto do projeto/arquivo]\n\nPROBLEMA:\n[Descreva o problema específico]\n\nOPÇÕES CONSIDERADAS:\n1. [Opção A]\n2. [Opção B]\n\nCRITÉRIOS:\n- [O que é importante: performance, manutenibilidade, etc]",
+  "query": "CONTEXTO:\n[Descreva o contexto]\n\nPROBLEMA:\n[Descreva o problema]\n\nOPÇÕES CONSIDERADAS:\n1. [Opção A]\n2. [Opção B]\n\nCRITÉRIOS:\n- [O que é importante]",
   "num_voters": 3,
   "k": 3
 }
@@ -119,7 +227,7 @@
 <tool_name>decompose_task</tool_name>
 <arguments>
 {
-  "task": "Implementar [funcionalidade] que deve:\n1. [Requisito 1]\n2. [Requisito 2]\n3. [Requisito 3]"
+  "task": "Implementar [funcionalidade] que deve:\n1. [Requisito 1]\n2. [Requisito 2]"
 }
 </arguments>
 </use_mcp_tool>
@@ -178,30 +286,24 @@
         ```typescript
         async function processOrder(orderId: string) {
           const order = await db.orders.findById(orderId);
-          const user = await db.users.findById(order.userId);
-          await emailService.send(user.email, 'Order confirmed');
-          await db.orders.update(orderId, { status: 'confirmed' });
+          // ...
         }
         ```"
-```
-
-### 4. Use decompose_task Antes de Tarefas Grandes
-```
-1. Primeiro: decompose_task para entender os passos
-2. Depois: consult_council para decisões em cada passo
-3. Por fim: Implementar seguindo o plano
 ```
 
 ---
 
 ## 🔄 WORKFLOW RECOMENDADO
 
-### Para Features Novas:
+### Para Features Novas (com Specs/Tasks):
 ```
-1. decompose_task → Planejar implementação
-2. consult_council → Decisões arquiteturais
-3. Implementar passo a passo
-4. solve_with_voting → Validar escolhas pontuais
+1. parse_spec → Criar spec a partir de PRD
+2. add_task (múltiplas) → Criar tasks baseado na spec
+3. expand_task → Detalhar tasks complexas
+4. next_task → Ver o que fazer primeiro
+5. consult_council → Decisões arquiteturais
+6. Implementar passo a passo
+7. set_task_status → Marcar progresso
 ```
 
 ### Para Refactoring:
@@ -221,6 +323,19 @@
 
 ---
 
+## 📊 ARMAZENAMENTO
+
+As specs e tasks são salvas em arquivos JSON no workspace:
+
+```
+workspace/
+└── .maker/
+    ├── specs.json    # Especificações do projeto
+    └── tasks.json    # Tasks e subtasks
+```
+
+---
+
 ## ⏱️ PERFORMANCE
 
 ### Tempos Esperados:
@@ -228,11 +343,9 @@
 - `consult_council` (3 voters): 20-60 segundos
 - `consult_council` (5 voters): 40-90 segundos
 - `decompose_task`: 10-30 segundos
-
-### Se demorar muito:
-- Verifique se o servidor está respondendo
-- Reduza num_voters para teste rápido
-- Verifique timeout (configurado para 600s)
+- `parse_spec`: 10-30 segundos
+- `expand_task`: 10-30 segundos
+- `list_tasks`, `get_task`, `next_task`: <1 segundo
 
 ---
 
@@ -251,130 +364,40 @@
 
 ---
 
-## 📊 INTERPRETANDO RESULTADOS
-
-### Métricas do Relatório:
-- **Total de amostras**: Quantas respostas foram geradas
-- **Amostras válidas**: Respostas que passaram no red-flagging
-- **Taxa de red-flag**: % de respostas descartadas (ideal < 20%)
-
-### Seções da Decisão do Juiz:
-1. **## Análise**: Resumo das propostas dos voters
-2. **## Decisão**: Solução final sintetizada
-3. **RED FLAG**: (se houver) Conflito perigoso detectado
-
----
-
-## 🔧 TROUBLESHOOTING
-
-### Erro "Timeout":
-- Aumente timeout no mcp.json
-- Reduza num_voters
-- Simplifique a query
-
-### Respostas inconsistentes:
-- Adicione mais contexto
-- Seja mais específico
-- Use k maior (4 ou 5)
-
-### "Nenhum microagente conseguiu gerar proposta":
-- Query pode estar mal formatada
-- Verifique conexão com API
-- Tente com query mais simples primeiro
-
----
-
-## 💡 EXEMPLOS PRÁTICOS
-
-### Exemplo 1: Usando `query` (Recomendado)
-```xml
-<use_mcp_tool>
-<server_name>maker-council</server_name>
-<tool_name>query</tool_name>
-<arguments>
-{
-  "prompt": "Preciso implementar autenticação JWT em uma API Node.js/Express com TypeScript. O projeto já tem middleware de rate limiting. Requisitos: refresh tokens, logout em todos dispositivos.",
-  "intent": "decision",
-  "config": {
-    "num_voters": 5,
-    "k": 3
-  }
-}
-</arguments>
-</use_mcp_tool>
-```
-
-### Exemplo 2: Decisão Arquitetural com `consult_council`
-```xml
-<use_mcp_tool>
-<server_name>maker-council</server_name>
-<tool_name>consult_council</tool_name>
-<arguments>
-{
-  "query": "CONTEXTO:\nEstamos desenvolvendo uma API REST em Node.js/Express para um sistema de e-commerce.\n\nPROBLEMA:\nPreciso decidir como estruturar o sistema de autenticação e autorização.\n\nOPÇÕES CONSIDERADAS:\n1. JWT com refresh tokens armazenados em Redis\n2. Sessions com express-session e Redis\n3. OAuth2 com Passport.js\n\nCRITÉRIOS:\n- Performance (esperamos 10k usuários simultâneos)\n- Segurança (PCI compliance necessário)\n- Facilidade de manutenção\n- Suporte a múltiplos dispositivos por usuário",
-  "num_voters": 5,
-  "k": 3
-}
-</arguments>
-</use_mcp_tool>
-```
-
-### Exemplo 3: Refactoring com `consult_council`
-```xml
-<use_mcp_tool>
-<server_name>maker-council</server_name>
-<tool_name>consult_council</tool_name>
-<arguments>
-{
-  "query": "CONTEXTO:\nTemos uma função legacy que processa pedidos e cresceu para 300+ linhas.\n\nCÓDIGO ATUAL:\n```typescript\nasync function processOrder(orderId: string) {\n  // validação\n  // busca no banco\n  // cálculo de preços\n  // aplicação de descontos\n  // validação de estoque\n  // processamento de pagamento\n  // envio de emails\n  // atualização de status\n}\n```\n\nPROBLEMA:\nComo refatorar mantendo compatibilidade e testabilidade?\n\nCRITÉRIOS:\n- Não quebrar integrações existentes\n- Facilitar testes unitários\n- Separar responsabilidades",
-  "num_voters": 3,
-  "k": 3
-}
-</arguments>
-</use_mcp_tool>
-```
-
-### Exemplo 4: Debugging com `solve_with_voting`
-```xml
-<use_mcp_tool>
-<server_name>maker-council</server_name>
-<tool_name>solve_with_voting</tool_name>
-<arguments>
-{
-  "query": "Tenho um memory leak em produção. A aplicação Node.js consome cada vez mais memória até crashar. Heap dump mostra muitos Promises pendentes. Principais hipóteses: 1) Event listeners não removidos, 2) Closures retendo referências, 3) Cache sem limite de tamanho. Qual investigar primeiro e como?",
-  "k": 5
-}
-</arguments>
-</use_mcp_tool>
-```
-
-### Exemplo 5: Decomposição de Task com `decompose_task`
-```xml
-<use_mcp_tool>
-<server_name>maker-council</server_name>
-<tool_name>decompose_task</tool_name>
-<arguments>
-{
-  "task": "Implementar sistema de notificações em tempo real que deve:\n1. Suportar WebSocket e Server-Sent Events\n2. Persistir notificações não lidas\n3. Permitir preferências de notificação por usuário\n4. Integrar com Firebase Cloud Messaging para mobile\n5. Incluir rate limiting e anti-spam\n6. Dashboard admin para envio de notificações em massa"
-}
-</arguments>
-</use_mcp_tool>
-```
-
----
-
-## 📌 CHECKLIST PRÉ-IMPLEMENTAÇÃO
+## � CHECKLIST PRÉ-IMPLEMENTAÇÃO
 
 Antes de implementar qualquer mudança significativa, pergunte-se:
 
+- [ ] Tenho uma spec clara? → **USE parse_spec**
+- [ ] A task é complexa? → **USE decompose_task ou expand_task**
 - [ ] É uma decisão arquitetural? → **USE consult_council**
 - [ ] Afeta múltiplos arquivos? → **USE consult_council**
 - [ ] É código de segurança/pagamento? → **USE consult_council (num_voters=5)**
-- [ ] A task é complexa? → **USE decompose_task PRIMEIRO**
 - [ ] Tenho dúvida entre abordagens? → **USE consult_council**
-- [ ] É um bug difícil? → **USE solve_with_voting para hipóteses**
+- [ ] É um bug difícil? → **USE solve_with_voting**
 
 **Se respondeu SIM a qualquer item: USE O MAKER-COUNCIL!**
+
+---
+
+## 📋 LISTA COMPLETA DE FERRAMENTAS (14)
+
+| Categoria | Ferramenta | Descrição |
+|-----------|------------|-----------|
+| **Core** | `query` | API unificada com roteamento automático |
+| **Core** | `consult_council` | Consulta com voting + juiz |
+| **Core** | `solve_with_voting` | Consenso por votação |
+| **Core** | `decompose_task` | Decompõe task em steps |
+| **Core** | `senior_code_review` | Review profundo de código |
+| **Specs** | `parse_spec` | Parseia PRD → spec estruturada |
+| **Specs** | `get_spec` | Retorna spec atual/por ID |
+| **Specs** | `update_spec` | Atualiza spec existente |
+| **Tasks** | `list_tasks` | Lista todas as tasks |
+| **Tasks** | `get_task` | Detalhes de uma task |
+| **Tasks** | `next_task` | Próxima task disponível |
+| **Tasks** | `add_task` | Cria nova task |
+| **Tasks** | `set_task_status` | Atualiza status |
+| **Tasks** | `expand_task` | Expande task em subtasks |
 
 ---
 
